@@ -235,6 +235,12 @@ async function saveAttendance() {
   msg.textContent = res.success ? 'Saved successfully' : `Save failed: ${res.message || ''}`;
 }
 
+  function logout() {
+      localStorage.removeItem("user");
+      location.href = "index.html";
+}
+  
 </script>
 </body>
+
 </html>
