@@ -77,7 +77,13 @@ async function toggleLockState() {
   if(res.success){ statusText.textContent=newStatus; statusText.style.color=newStatus==='Locked'?'red':'green'; alert(`Attendance is now ${newStatus} for ${date}`);}
   else alert("Failed: "+res.message);
 }
+
+  function logout() {
+      localStorage.removeItem("user");
+      location.href = "index.html";
+}
 </script>
 
 </body>
 </html>
+
