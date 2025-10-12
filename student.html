@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student - Exam Seating</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <script src="common.js"></script>
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: #f7f9fc;
+      padding: 20px;
+    }
+    h1, h2 { text-align: center; }
+
+    .card {
+      background: #fff;
+      padding: 18px;
+      border-radius: 12px;
+      max-width: 1000px;
+      margin: 0 auto;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+    }
+
+    .btn {
+      background: #2563eb;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .small { font-size: 13px; color: #666; }
+
+    /* Centered grid layout */
+    .grid-container {
+      display: grid;
+      justify-content: center; /* Center the grid */
+      grid-template-columns: repeat(auto-fit, minmax(280px, 350px)); /* Limit width per box */
+      gap: 25px;
+      margin-top: 20px;
+    }
+
+    /* Individual box (card) style */
+    .exam-box {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 18px;
+      width: 320px;
+      transition: all 0.3s ease;
+      text-align: left;
+    }
+
+    .exam-box:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+
+    .exam-hall {
+      font-size: 26px;
+      font-weight: 700;
+      color: #2563eb;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .exam-detail {
+      font-size: 15px;
+      margin: 4px 0;
+      color: #333;
+    }
+
+    .locked {
+      color: red;
+      font-weight: bold;
+      text-align: center;
+      padding: 30px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1>Student Dashboard</h1>
+        <div id="welcome" class="small"></div>
+      </div>
+      <button class="btn" onclick="logout()">Logout</button>
+    </div>
+    <hr>
+    <h2>Welcome, <span id="studentName"></span></h2>
+    <p id="infoMessage" class="small"></p>
+
+    <div id="seatingContainer" class="grid-container"></div>
+  </div>
+
+  <script>
+    async function loadSeating() {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (!user || user.role !== "Student") {
+        alert("Please login as student.");
+        location.href = "login.html";
+        return;
+      }
+
+      document.getElementById("studentName").innerText = user.name;
+
+      const today = new Date();
+      const formattedDate = today.getFullYear() + "-" +
+                            String(today.getMonth()+1).padStart(2,"0") + "-" +
+                            String(today.getDate()).padStart(2,"0");
+
+      const res = await apiFetch({ action: "getStudentSeating", email: user.email, date: formattedDate });
+      const container = document.getElementById("seatingContainer");
+      container.innerHTML = "";
+
+      if (!res.success || res.seating.length === 0) {
+        document.getElementById("infoMessage").innerText = "No seating information found for today.";
+        return;
+      }
+
+      let lockedCount = 0;
+      const batchTimes = { "FN": "8:30 AM", "AN": "1:00 PM" };
+
+      res.seating.forEach(row => {
+        const div = document.createElement("div");
+
+        if (row.HallNo === "Locked") {
+          div.className = "exam-box";
+          div.innerHTML = `
+            <div class="locked">Seating will be available after ${batchTimes[row.Batch.toUpperCase()]}</div>
+          `;
+          lockedCount++;
+        } else {
+          div.className = "exam-box";
+          div.innerHTML = `
+            <div class="exam-hall">${row.HallNo}</div>
+            <div class="exam-detail"><strong>Date:</strong> ${row.Date}</div>
+            <div class="exam-detail"><strong>Department:</strong> ${row.Department}</div>
+            <div class="exam-detail"><strong>Session:</strong> ${row.Batch}</div>
+            <div class="exam-detail"><strong>Seat No:</strong> ${row.SeatNo}</div>
+            <div class="exam-detail"><strong>Subject Code:</strong> ${row.SubjectCode}</div>
+            <div class="exam-detail"><strong>Subject:</strong> ${row.Subject}</div>
+          `;
+        }
+        container.appendChild(div);
+      });
+
+      if (lockedCount === res.seating.length) {
+        document.getElementById("infoMessage").innerText =
+          "Seating is not yet available. Please check after the batch start time.";
+      } else {
+        document.getElementById("infoMessage").innerText = "";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("user");
+      location.href = "login.html";
+    }
+
+    loadSeating();
+  </script>
+</body>
+</html>

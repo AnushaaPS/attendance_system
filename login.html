@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login - Exam Attendance System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <script src="common.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #4b6cb7, #182848);
+      color: #333;
+    }
+
+    .login-container {
+      background: #fff;
+      padding: 40px 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      transition: transform 0.3s;
+    }
+
+    .login-container:hover {
+      transform: translateY(-5px);
+    }
+
+    .login-container h2 {
+      margin-bottom: 30px;
+      color: #2463eb;
+      font-weight: 500;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 12px 15px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+
+    .login-container input:focus {
+      border-color: #2463eb;
+      outline: none;
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 12px 15px;
+      margin-top: 20px;
+      background-color: #2463eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .login-container button:hover {
+      background-color: #1b4fc0;
+      transform: scale(1.03);
+    }
+
+    @media (max-width: 500px) {
+      .login-container {
+        padding: 30px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Exam Attendance System</h2>
+    <input type="email" id="email" placeholder="Email"><br>
+    <input type="password" id="password" placeholder="Password"><br>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <script>
+  async function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    const res = await apiFetch({ action: "login", email, password });
+
+    if (res.success) {
+      const user = res.user; 
+      localStorage.setItem("user", JSON.stringify(user));
+
+      if (user.role === "Faculty") location.href = "faculty.html";
+      else if (user.role === "Staff") location.href = "staff.html";
+      else if (user.role === "CoE") location.href = "coe.html";
+      else if (user.role === "Student") location.href = "student.html";
+    } else {
+      alert(res.message || "Invalid credentials");
+    }
+  }
+</script>
+
+</body>
+</html>

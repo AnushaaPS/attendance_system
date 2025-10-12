@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CoE Report & CSV Download</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<script src="common.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+body { font-family: Arial; margin: 18px; background: #f7f9fc; }
+.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+.btn { background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
+.btn-secondary { background: #ccc; color: #333; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; margin-left: 8px; }
+table { font-size: 13px; }
+</style>
+</head>
+<body onload="initReport()">
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <h1>Attendance Report</h1>
+      <div id="welcome" class="small"></div>
+    </div>
+    <div>
+      <button class="btn" onclick="window.location.href='coe.html'">Go to Dashboard</button>
+      <button class="btn" onclick="window.location.href='lock.html'">Lock Editing</button>
+      <button class="btn" onclick="window.location.href='upload.html'">Upload Users</button>
+      <button class="btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <hr>
+
+  <div style="margin:12px 0">
+    <label>Filter By:</label>
+    <select id="filterType" onchange="onFilterChange()">
+      <option value="Overall">Overall</option>
+      <option value="Department">Department</option>
+      <option value="Hall">Hall</option>
+      <option value="Date">Date</option>
+    </select>
+    <select id="filterValue" style="display:none"></select>
+    <input type="date" id="filterDate" style="display:none" />
+    <select id="filterBatch" style="display:none; margin-left:8px;">
+      <option value="">Select Batch</option>
+      <option value="FN">FN</option>
+      <option value="AN">AN</option>
+    </select>
+    <button class="btn" onclick="loadReport()">Load Report</button>
+    <button class="btn" onclick="downloadCSV()">Download CSV</button>
+    <button class="btn" onclick="downloadPDF()">Download PDF</button>
+  </div>
+  
+  <div id="reportTable" style="margin-top:20px;"></div>
+</div>
+
+<script>
+let user=null, allData=[], lastReport=[], selectedBatch='';
+
+async function initReport(){
+  user=requireRole('CoE');
+  if(!user) return;
+  document.getElementById('welcome').innerText=`Signed in as: ${user.name}`;
+  
+  const res = await apiFetch({ action:'report' });
+  if(!res.success){ alert("Failed to load data"); return; }
+  allData = res.rows || [];
+  
+  populateFilters();
+}
+
+function populateFilters(){
+  const depts=[...new Set(allData.map(r=>r.Department).filter(Boolean))].sort();
+  const halls=[...new Set(allData.map(r=>r.HallNo).filter(Boolean))].sort();
+
+  const sel=document.getElementById('filterValue');
+  sel.innerHTML='';
+  
+  // Create all options and mark type
+  depts.forEach(d=>{
+    const op=document.createElement('option');
+    op.value=d; op.text=d; op.dataset.type='Department';
+    sel.appendChild(op);
+  });
+  halls.forEach(h=>{
+    const op=document.createElement('option');
+    op.value=h; op.text=h; op.dataset.type='Hall';
+    sel.appendChild(op);
+  });
+}
+
+function onFilterChange(){
+  const type=document.getElementById('filterType').value;
+  const valSel=document.getElementById('filterValue');
+  const dateSel=document.getElementById('filterDate');
+  const batchSel=document.getElementById('filterBatch');
+
+  if(type==='Overall'){ 
+    valSel.style.display='none'; 
+    dateSel.style.display='none'; 
+    batchSel.style.display='none';
+  }
+  else if(type==='Date'){ 
+    valSel.style.display='none'; 
+    dateSel.style.display='inline-block'; 
+    batchSel.style.display='inline-block';
+  }
+  else { 
+    valSel.style.display='inline-block'; 
+    dateSel.style.display='none'; 
+    batchSel.style.display='none';
+    [...valSel.options].forEach(op=>op.hidden=op.dataset.type!==type);
+    const first=[...valSel.options].find(op=>!op.hidden);
+    if(first) valSel.value=first.value;
+  }
+}
+
+async function loadReport(){
+  const type=document.getElementById('filterType').value;
+  const val=document.getElementById('filterValue').value;
+  const dateVal=document.getElementById('filterDate').value;
+  const batchVal=document.getElementById('filterBatch').value;
+  selectedBatch=batchVal;
+
+  let filtered = [...allData];
+
+  if(type==='Department') filtered = filtered.filter(r=>r.Department===val);
+  if(type==='Hall') filtered = filtered.filter(r=>r.HallNo===val);
+  if(type==='Date' && dateVal) filtered = filtered.filter(r=>r.Date===dateVal);
+  if(batchVal) filtered = filtered.filter(r => ((r.Batch||'').trim().toUpperCase()) === batchVal.toUpperCase());
+
+lastReport = filtered.filter(r => {
+  const st = (r.Status || '').trim().toUpperCase();
+  return st === 'ABSENT' || st === 'OD';
+});
+
+  renderReportTable();
+}
+
+function renderReportTable(){
+  const container=document.getElementById('reportTable');
+  const headers=["Date","Batch","RollNo","Name","Department","Year","Section","HallNo","SeatNo","SubjectCode","Subject","Status","Reason"];
+
+  let html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;background:#fff;">';
+  html+='<thead><tr style="background:#2463eb;color:#fff;">';
+  headers.forEach(h=>html+=`<th>${h}</th>`);
+  html+='</tr></thead><tbody>';
+
+  lastReport.forEach(r=>{
+    html+=`<tr>
+      <td>${r.Date||''}</td>
+      <td>${r.Batch||''}</td>
+      <td>${r.RollNo}</td>
+      <td>${r.Name}</td>
+      <td>${r.Department}</td>
+      <td>${r.Year}</td>
+      <td>${r.Section}</td>
+      <td>${r.HallNo}</td>
+      <td>${r.SeatNo}</td>
+      <td>${r.SubjectCode}</td>
+      <td>${r.Subject}</td>
+      <td>${r.Status}</td>
+      <td>${r.Reason}</td>
+    </tr>`;
+  });
+
+  html+='</tbody></table>';
+  container.innerHTML=html;
+}
+
+function downloadCSV(){
+  if(!lastReport.length) return alert('No data');
+
+  const headers=["Date","Batch","RollNo","Name","Department","Year","Section","HallNo","SeatNo","SubjectCode","Subject","Status","Reason"];
+  const rows=lastReport.map(r=>[
+    r.Date, r.Batch || selectedBatch || '', r.RollNo, r.Name, r.Department, r.Year, r.Section,
+    r.HallNo, r.SeatNo, r.SubjectCode, r.Subject, r.Status, r.Reason
+  ]);
+
+  const csv=[headers.join(","), ...rows.map(r=>r.map(s=>`"${s}"`).join(","))].join("\n");
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const date=document.getElementById('filterDate').value || 'All';
+  a.href=url;
+  a.download=`absentees_OD_${date}_${selectedBatch || 'All'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadPDF(){
+  if(!lastReport.length) return alert('No data');
+
+  const container=document.getElementById('reportTable');
+  const clone=container.cloneNode(true);
+
+  const logo=document.createElement('img');
+  logo.src='logo.jpeg';
+  logo.style.width='300px';
+  logo.style.display='block';
+  logo.style.margin='0 auto 10px auto';
+  clone.insertBefore(logo,clone.firstChild);
+
+  const title=document.createElement('h3');
+  title.innerText=`Absentees/OD Report - ${document.getElementById('filterDate').value || 'All Dates'} (${selectedBatch || 'All Batches'})`;
+  title.style.textAlign='center';
+  clone.insertBefore(title,logo.nextSibling);
+
+  const table=clone.querySelector('table');
+  if(table) table.style.fontSize='10px';
+
+  clone.style.position='absolute';
+  clone.style.left='-9999px';
+  document.body.appendChild(clone);
+
+  const canvas=await html2canvas(clone,{scale:2});
+  document.body.removeChild(clone);
+
+  const { jsPDF }=window.jspdf;
+  const pdf=new jsPDF('p','pt','a4');
+  const pdfWidth=pdf.internal.pageSize.getWidth();
+  const pdfHeight=pdf.internal.pageSize.getHeight();
+  const imgHeight=(canvas.height*pdfWidth)/canvas.width;
+  const imgData=canvas.toDataURL('image/png');
+
+  let y=0;
+  while(y<imgHeight){
+    pdf.addImage(imgData,'PNG',0,-y,pdfWidth,imgHeight);
+    y+=pdfHeight;
+    if(y<imgHeight) pdf.addPage();
+  }
+
+  const date=document.getElementById('filterDate').value || 'All';
+  pdf.save(`absentees_OD_${date}_${selectedBatch || 'All'}.pdf`);
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Attendance Lock/Unlock</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<script src="common.js"></script>
+<style>
+body { font-family: Arial; margin: 18px; background: #f7f9fc; }
+.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 600px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+.switch { position: relative; display: inline-block; width: 60px; height: 30px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 30px; transition: 0.4s; }
+.slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.4s; }
+input:checked + .slider { background-color: #2463eb; }
+input:checked + .slider:before { transform: translateX(30px); }
+body { font-family: Arial; margin: 18px; background: #f7f9fc; }
+.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+.btn { background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
+.btn-secondary { background: #ccc; color: #333; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; margin-left: 8px; }
+</style>
+</head>
+<body onload="initLock()">
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <h1>Lock Entry</h1>
+      <div id="welcome" class="small"></div>
+    </div>
+    <div>
+      <button class="btn" onclick="window.location.href='coe.html'">Go to Dashboard</button>
+      <button class="btn" onclick="window.location.href='report.html'">Go to Reports</button>
+      <button class="btn" onclick="window.location.href='upload.html'">Upload Users</button>
+      <button class="btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+  <hr>
+  <div style="margin-top:16px">
+    <label for="lockDate">Select Date:</label>
+    <input type="date" id="lockDate" onchange="updateToggleState()" />
+    <label class="switch">
+      <input type="checkbox" id="lockToggle" onchange="toggleLockState()" />
+      <span class="slider"></span>
+    </label>
+    <span id="lockStatusText">Unlocked</span>
+  </div>
+</div>
+
+<script>
+let user=null;
+
+function initLock() {
+  user=requireRole('CoE');
+  if(!user) return;
+  document.getElementById('welcome').innerText=`Signed in as: ${user.name}`;
+}
+
+async function updateToggleState() {
+  const date=document.getElementById('lockDate').value;
+  if(!date) return;
+  const res=await apiFetch({ action:'getLockStatus', date });
+  const toggle=document.getElementById('lockToggle');
+  const statusText=document.getElementById('lockStatusText');
+  if(res.success && res.lock==='Locked'){ toggle.checked=true; statusText.textContent='Locked'; statusText.style.color='red'; }
+  else { toggle.checked=false; statusText.textContent='Unlocked'; statusText.style.color='green'; }
+}
+
+async function toggleLockState() {
+  const date=document.getElementById('lockDate').value;
+  if(!date) return alert("Select date first");
+  const toggle=document.getElementById('lockToggle');
+  const statusText=document.getElementById('lockStatusText');
+  const newStatus=toggle.checked ? "Locked" : "Unlocked";
+  const res=await apiFetch({ action:'setLockStatus', date, value:newStatus });
+  if(res.success){ statusText.textContent=newStatus; statusText.style.color=newStatus==='Locked'?'red':'green'; alert(`Attendance is now ${newStatus} for ${date}`);}
+  else alert("Failed: "+res.message);
+}
+</script>
+
+</body>
+</html>

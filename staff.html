@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Staff Dashboard - Hall Attendance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <script src="common.js"></script>
+  <style>
+    body {font-family: Arial; margin: 18px; background: #f7f9fc;}
+    .card {background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05);}
+    .u-row {display: flex; gap: 8px; align-items: center;}
+    .btn {background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer;}
+    .seat {padding: 10px; border-radius: 8px; text-align: center; cursor: pointer; user-select: none; margin: 4px; font-size: 13px; white-space: pre-line;}
+    .present {background: #d4f7d4; border: 1px solid #4CAF50;}
+    .absent {background: #f9d0d0; border: 1px solid #d9534f;}
+    .od {background: #e6d6f7; border: 1px solid #8a2be2; color: #2b0a5f;}
+    .small {font-size: 13px; color: #666;}
+    .hall-grid {display: flex; gap: 20px; flex-wrap: wrap; justify-content: flex-start; margin-top: 16px;}
+    .column {display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 90px;}
+    .col-label {font-weight: bold; color: #333; margin-bottom: 6px;}
+    .locked .seat {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+  </style>
+</head>
+<body onload="initStaff()">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><h1>Staff Dashboard</h1><div id="welcome" class="small"></div></div>
+      <div><button class="btn" onclick="logout()">Logout</button></div>
+    </div>
+    <hr>
+    <section>
+      <div class="u-row" style="margin-bottom:8px">
+        <label>Date:</label>
+<input type="date" id="dateFilter" />
+
+<label>Batch:</label>
+<select id="batchSelect">
+  <option value="FN">FN</option>
+  <option value="AN">AN</option>
+</select>
+
+<label>Hall:</label>
+<select id="hallSelect"></select>
+
+<button class="btn" onclick="loadHall()">Load Hall</button>
+<button class="btn" id="saveBtn" onclick="saveAttendance()" disabled>Save</button>
+
+      </div>
+      <div id="hallGrid"></div>
+      <div id="statusMsg" class="small" style="margin-top:10px"></div>
+    </section>
+  </div>
+
+<script>
+let user = null;
+let hallData = [];
+
+function initStaff(){
+  user = requireRole('Staff');
+  if(!user) return;
+  document.getElementById('welcome').innerText = `Signed in as: ${user.name} — Dept: ${user.department}`;
+  populateHalls();
+}
+
+async function populateHalls() {
+  const res = await apiFetch({ action: "getHalls", department: user.department });
+  const sel = document.getElementById('hallSelect');
+  sel.innerHTML = '';
+
+  if (!res.success) {
+    sel.innerHTML = '<option>Error loading halls</option>';
+    return;
+  }
+
+  const halls = res.halls || [];
+  if (halls.length === 0) {
+    sel.innerHTML = '<option>No halls</option>';
+    return;
+  }
+
+  halls.forEach(h => {
+    const op = document.createElement('option');
+    op.value = h;
+    op.textContent = h;
+    sel.appendChild(op);
+  });
+}
+
+
+let isLocked = false; // global flag
+
+async function checkLockStatus(date) {
+  if (!date) return;
+  const batch = document.getElementById("batchSelect").value || "";
+  const res = await apiFetch({ action: "getLockStatus", date, batch });
+  const grid = document.getElementById("hallGrid");
+  const saveBtn = document.getElementById("saveBtn");
+
+  if (res.lock === "Locked") {
+    isLocked = true;
+    document.getElementById("statusMsg").textContent = `Editing locked by CoE for ${date}`;
+    grid.classList.add("locked");
+    saveBtn.disabled = true;
+  } else {
+    isLocked = false;
+    document.getElementById("statusMsg").textContent = "";
+    grid.classList.remove("locked");
+    saveBtn.disabled = false;
+  }
+}
+
+async function loadHall() {
+  const hallNo = document.getElementById("hallSelect").value;
+  const date = document.getElementById("dateFilter").value || "";
+  const batch = document.getElementById("batchSelect").value || "";
+
+  if (!hallNo) {
+    alert("Select hall");
+    return;
+  }
+  document.getElementById("hallGrid").innerHTML = '<div class="small">Loading...</div>';
+
+  // ✅ check lock before loading
+  await checkLockStatus(date);
+
+  const res = await apiFetch({ action: "getHall", department: user.department, hallNo, date, batch });
+
+  if (!res.success) {
+    document.getElementById("hallGrid").innerHTML = "Error: " + (res.message || "");
+    return;
+  }
+
+  hallData = res.hallData || [];
+  renderHall();
+
+  // ✅ Apply lock visually again after rendering
+  if (isLocked) {
+    document.getElementById("hallGrid").classList.add("locked");
+    document.getElementById("saveBtn").disabled = true;
+  }
+}
+
+function renderHall(){
+  const container = document.getElementById('hallGrid');
+  if(!hallData.length){
+    container.innerHTML = '<div class="small">No seating data</div>';
+    document.getElementById('saveBtn').disabled=true;
+    return;
+  }
+
+  // group seats by letter prefix
+  const grouped = {};
+  hallData.forEach((r, idx) => {
+    const prefix = (r.SeatNo || '').trim().charAt(0).toUpperCase() || '?';
+    if(!grouped[prefix]) grouped[prefix] = [];
+    grouped[prefix].push({...r, index: idx});
+  });
+
+  // sort by prefix (A, B, C...) and within each prefix by number
+  const sortedPrefixes = Object.keys(grouped).sort();
+  const grid = document.createElement('div');
+  grid.className = 'hall-grid';
+
+  sortedPrefixes.forEach(pref => {
+    const col = document.createElement('div');
+    col.className = 'column';
+    const label = document.createElement('div');
+    label.className = 'col-label';
+    label.textContent = pref;
+    col.appendChild(label);
+
+    grouped[pref].sort((a,b)=>{
+      const na = parseInt(a.SeatNo.substring(1)) || 0;
+      const nb = parseInt(b.SeatNo.substring(1)) || 0;
+      return na - nb;
+    }).forEach(r=>{
+      const div = document.createElement('div');
+      div.className = 'seat ' + (r.Status==='Absent'?'absent': r.Status==='OD' ? 'od' : 'present');
+      div.textContent = r.SeatNo + '\n' + (r.RollNo || '');
+      div.title = `${r.RollNo} - ${r.Name || ''} (${r.Year||''} ${r.Section||''})`;
+      div.addEventListener('click', e => singleOrDouble(e, ()=> setAbsent(r.index,div)));
+      div.addEventListener('dblclick', e => { e.preventDefault(); setOD(r.index,div); });
+      col.appendChild(div);
+    });
+    grid.appendChild(col);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(grid);
+  document.getElementById('saveBtn').disabled=false;
+}
+
+// helper to differentiate single vs double click
+let clickTimer = null;
+function singleOrDouble(e, singleFn){
+  if (clickTimer !== null) {
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    return;
+  }
+  clickTimer = setTimeout(()=>{ singleFn(); clickTimer = null; }, 250);
+}
+
+function setAbsent(idx, div){
+  hallData[idx].Status = hallData[idx].Status === 'Absent' ? 'Present' : 'Absent';
+  div.className = 'seat ' + (hallData[idx].Status==='Absent' ? 'absent' : 'present');
+}
+
+function setOD(idx, div){
+  hallData[idx].Status = hallData[idx].Status === 'OD' ? 'Present' : 'OD';
+  div.className = 'seat ' + (hallData[idx].Status==='OD' ? 'od' : (hallData[idx].Status==='Absent'?'absent':'present'));
+}
+
+async function saveAttendance() {
+  const hallNo = document.getElementById('hallSelect').value;
+  const date = document.getElementById('dateFilter').value || '';
+  const batch = document.getElementById("batchSelect").value || "";
+
+  if (!hallNo || !date) { alert('Select hall and date'); return; }
+
+  const resLock = await apiFetch({ action: 'checkLock', date });
+  if (resLock.locked) {
+    alert(`Attendance for ${date} is locked by CoE.`);
+    return;
+  }
+
+  const updates = hallData.map(r => ({ RollNo: r.RollNo, Status: r.Status }));
+  const res = await apiFetch({ action:'saveAttendance', hallNo, date, batch, updates });
+  const msg = document.getElementById('statusMsg');
+  msg.textContent = res.success ? 'Saved successfully' : `Save failed: ${res.message || ''}`;
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Faculty Dashboard - Exam Attendance</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="common.js"></script>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:18px;background:#f7f9fc;color:#111}
+    .card{background:#fff;padding:18px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.05);max-width:1100px;margin:12px auto}
+    .u-row{display:flex;gap:8px;align-items:center}
+    .btn{background:#2463eb;color:#fff;padding:8px 12px;border-radius:6px;border:none;cursor:pointer}
+    .small{font-size:13px;color:#666}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px;border:1px solid #eef2f7;text-align:left}
+  </style>
+</head>
+<body onload="initFaculty()">
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h1>Faculty Dashboard</h1>
+        <div id="welcome" class="small"></div>
+      </div>
+      <div>
+        <button class="btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="u-row" style="margin-top:6px">
+  <button class="btn" onclick="downloadExcelTemplate()">Download Excel Template</button>
+  <span class="small">Use this template to upload seating data</span>
+</div>
+
+
+    <hr>
+
+    <!-- Upload -->
+    <section>
+      <h2>Upload Seating Excel</h2>
+      <div class="u-row">
+        <input type="file" id="excelFile" accept=".xlsx,.xls" />
+        <button class="btn" id="btnUpload" onclick="uploadExcel()">Upload & Save</button>
+        <span id="uploadMsg" class="small"></span>
+      </div>
+    </section>
+
+    <hr>
+
+    <!-- Absentees & Summary -->
+    <section>
+      <h2>Absentees & Summary</h2>
+      <div class="u-row" style="margin-bottom:8px;align-items:center">
+        <label>Date:</label>
+<input type="date" id="dateFilter" />
+
+<label>Batch:</label>
+<select id="batchSelect">
+  <option value="FN">FN</option>
+  <option value="AN">AN</option>
+</select>
+
+<label>Department:</label>
+<select id="deptSelect"></select>
+
+<button class="btn" onclick="loadAbsentees()">Load</button>
+<button class="btn" onclick="downloadAbsenteesCSV()">Download CSV</button>
+
+      </div>
+
+      <div id="deptStats" style="margin-top:8px" class="small"></div>
+
+      <div id="absenteesArea" style="margin-top:12px"></div>
+
+      <h3 style="margin-top:14px">Year & Section Summary</h3>
+      <!-- Add this inside your <section> for Absentees & Summary, right above <div id="yearSummaryArea"></div> -->
+
+<div id="yearCardArea" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:8px"></div>
+
+      <div id="yearSummaryArea"></div>
+    </section>
+  </div>
+
+<script>
+let user = null;
+let absentees = [];
+let currentTotals = null;
+let currentYearSummary = null;
+
+function initFaculty(){
+  user = requireRole('Faculty');
+  if(!user) return;
+  document.getElementById('welcome').innerText = `Signed in as: ${user.name} — Dept: ${user.department || ''}`;
+  populateDepartments();
+}
+
+async function populateDepartments(){
+  const sel = document.getElementById('deptSelect');
+  sel.innerHTML = '';
+  if(user.department){
+    const op = document.createElement('option');
+    op.value = user.department;
+    op.textContent = user.department;
+    sel.appendChild(op);
+    sel.disabled = true;   // ✅ faculty cannot change department
+  }
+}
+
+function downloadExcelTemplate(){
+  const headers = ["Date","Department","Batch","Hall No","Student Roll No","Name","Seating No","Subject Code","Subject","Year","Section"];
+  const wb = XLSX.utils.book_new();
+  const ws_data = [headers]; // only headers, empty rows
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  
+  // Optional: set column widths for readability
+  ws['!cols'] = [
+    {wch:12},{wch:15},{wch:10},{wch:18},{wch:20},{wch:12},{wch:15},{wch:20},{wch:8},{wch:8},{wch:10},{wch:20}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "SeatingTemplate");
+  XLSX.writeFile(wb, "Faculty_Seating_Template.xlsx");
+}
+
+async function uploadExcel(){
+  const f = document.getElementById('excelFile').files[0];
+  const msg = document.getElementById('uploadMsg'); msg.textContent='';
+  if(!f){ msg.textContent='Choose a file'; return; }
+  document.getElementById('btnUpload').disabled = true; msg.textContent='Parsing...';
+  try {
+    const data = await f.arrayBuffer();
+    const wb = XLSX.read(data,{type:'array'});
+    const sname = wb.SheetNames[0];
+    const sheet = wb.Sheets[sname];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    if(!rows.length){ msg.textContent='No rows'; document.getElementById('btnUpload').disabled=false; return; }
+    const normalized = rows.map(r=>({
+      Date: r['Date'] || r['date'] || r['DATE'] || '',
+      Department: r['Department'] || r['department'] || '',
+      "Batch": r['Batch'] || '',
+      "Hall No": r['Hall No'] || r['Hall'] || r['HallNo'] || '',
+      "Student Roll No": r['Student Roll No'] || r['Roll No'] || r['RollNo'] || '',
+      "Name": r['Name'] || r['name'] || '',
+      "Seating No": r['Seating No'] || r['Seat No'] || r['SeatNo'] || '',
+      "Subject Code": r['Subject Code'] || r['SubjectCode'] || '',
+      Subject: r['Subject'] || r['Subject Name'] || '',
+      "Year": r['Year'] || '',
+      "Section": r['Section'] || ''
+    }));
+    const res = await apiFetch({ action:'uploadUsers', rows: normalized });
+    if(res.success) msg.textContent = `Uploaded ${res.count} rows`;
+    else msg.textContent = 'Upload failed: ' + (res.message||JSON.stringify(res));
+  } catch(err){ console.error(err); msg.textContent = 'Error: '+err.message; }
+  finally{ document.getElementById('btnUpload').disabled=false; }
+}
+
+async function loadAbsentees(){
+  const dept = document.getElementById('deptSelect').value || user.department;
+  const date = document.getElementById('dateFilter').value || '';
+  const batch = document.getElementById('batchSelect').value || '';
+  const res = await apiFetch({ action:'getAbsentees', department: dept, date, batch });
+
+  document.getElementById('absenteesArea').innerHTML = '<div class="small">Loading...</div>';
+  if(!res.success){ document.getElementById('absenteesArea').innerHTML = 'Error: '+(res.message||''); return; }
+  absentees = res.absentees || [];
+  currentTotals = res.totals || null;
+  currentYearSummary = res.yearSummary || null;
+  renderAbsentees();
+  renderTotals();
+  renderYearSummary();
+}
+
+function renderAbsentees(){
+  const area = document.getElementById('absenteesArea');
+  // accept rows already returned by backend; but be defensive about status text
+  const filtered = (absentees || []).filter(r => {
+    const s = (r.Status || "").toString().trim().toUpperCase();
+    return s === "ABSENT" || s === "OD";
+  });
+
+  if(!filtered.length){
+    area.innerHTML = '<div class="small">No absentees / OD entries</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Date</th><th>Hall</th><th>Seat</th><th>Roll</th><th>Name</th><th>Year</th><th>Section</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead><tbody>';
+  filtered.forEach((r, idx)=>{
+    const reason = r.Reason||'';
+    html += `<tr data-idx="${idx}">
+      <td>${escapeHtml(r.Date||'')}</td>
+      <td>${escapeHtml(r.HallNo||'')}</td>
+      <td>${escapeHtml(r.SeatNo||'')}</td>
+      <td>${escapeHtml(r.RollNo||'')}</td>
+      <td>${escapeHtml(r.Name||'')}</td>
+      <td>${escapeHtml(r.Year||'')}</td>
+      <td>${escapeHtml(r.Section||'')}</td>
+      <td>${escapeHtml(r.Status||'')}</td>
+      <td><input id="reason_${idx}" value="${escapeHtml(reason)}" style="width:100%"></td>
+      <td><button class="btn" onclick="saveReason(${idx})">Save</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  area.innerHTML = html;
+}
+
+function renderTotals(){
+  const el = document.getElementById('deptStats');
+  if(!currentTotals){ el.innerText=''; return; }
+  el.innerHTML = `Total students: ${currentTotals.total} — Present: ${currentTotals.present} — Absent: ${currentTotals.absent} — OD: ${currentTotals.od} — Attendance: ${currentTotals.attendancePercent}%`;
+}
+
+function renderYearSummary(){
+  const area = document.getElementById('yearSummaryArea');
+  if(!currentYearSummary){ area.innerHTML=''; return; }
+  // Build a table with Year / Section / total / present / absent / od / %
+  let html = '<table><thead><tr><th>Year</th><th>Section</th><th>Total</th><th>Present</th><th>Absent</th><th>OD</th><th>Attendance %</th></tr></thead><tbody>';
+  for(const yr of Object.keys(currentYearSummary).sort()){
+    const y = currentYearSummary[yr];
+    for(const sec of Object.keys(y.sections).sort()){
+      const s = y.sections[sec];
+      const pct = s.total===0?0:Math.round((s.present / s.total)*10000)/100;
+      html += `<tr><td>${escapeHtml(yr)}</td><td>${escapeHtml(sec)}</td><td>${s.total}</td><td>${s.present}</td><td>${s.absent}</td><td>${s.od}</td><td>${pct}%</td></tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  area.innerHTML = html;
+}
+
+async function saveReason(idx) {
+  const r = absentees[idx];
+  if (!r) return alert("Invalid record");
+
+  // ✅ Always check lock status before allowing edit
+  const lockRes = await apiFetch({ action: "getLockStatus", date: r.Date });
+  if (lockRes.lock === "Locked") {
+    alert(`Editing disabled — ${r.Date} is locked by CoE.`);
+    // disable all save buttons + input boxes
+    document.querySelectorAll("button.btn").forEach(b => {
+      if (b.textContent === "Save") b.disabled = true;
+    });
+    document.querySelectorAll("input[id^='reason_']").forEach(i => (i.disabled = true));
+    return;
+  }
+
+  const reason = document.getElementById("reason_" + idx).value;
+  const res = await apiFetch({
+    action: "saveReason",
+    rollNo: r.RollNo,
+    reason,
+    date: r.Date,
+    role: user.role
+  });
+
+  if (res.success) {
+    alert("Saved successfully");
+    absentees[idx].Reason = reason;
+  } else {
+    alert("Save failed: " + (res.message || ""));
+  }
+}
+
+function escapeHtml(s){ if(!s && s!==0) return ''; return String(s).replace(/[&<>"'`]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'})[m]); }
+
+function downloadAbsenteesCSV(){
+  if(!absentees.length){ alert('No data'); return; }
+
+  const batch = document.getElementById('batchSelect').value || '';
+  const hdr = ["Date","Batch","Department","HallNo","SeatNo","RollNo","Name","Year","Section","Status","Reason"];
+  const rows = absentees.map(r => [
+    r.Date, batch, r.Department, r.HallNo, r.SeatNo, r.RollNo, r.Name || "", r.Year || "", r.Section || "", r.Status, r.Reason || ""
+  ]);
+
+  const csv = [hdr.join(","), ...rows.map(r=>r.map(s=>`"${String(s).replace(/"/g,'""')}"`).join(","))].join("\n");
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`absentees_${batch}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// Add this at the end of your <script> (after renderYearSummary)
+function renderYearCards(){
+  const area = document.getElementById('yearCardArea');
+  if(!currentYearSummary){ area.innerHTML=''; return; }
+
+  let html = '';
+  for(const yr of Object.keys(currentYearSummary).sort()){
+    const y = currentYearSummary[yr];
+    for(const sec of Object.keys(y.sections).sort()){
+      const s = y.sections[sec];
+      const pct = s.total===0?0:Math.round((s.present / s.total)*10000)/100;
+      html += `<div class="card" style="cursor:pointer;transition:0.2s;background:#f7f9fc;" onclick="viewSection('${yr}','${sec}')">
+        <h4>Year: ${escapeHtml(yr)}, Section: ${escapeHtml(sec)}</h4>
+        <p>Total: ${s.total}</p>
+        <p>Present: ${s.present}</p>
+        <p>Absent: ${s.absent}</p>
+        <p>OD: ${s.od}</p>
+        <p><b>Attendance: ${pct}%</b></p>
+      </div>`;
+    }
+  }
+  area.innerHTML = html;
+}
+
+// Modify your loadAbsentees() to also call renderYearCards
+async function loadAbsentees(){
+  const dept = document.getElementById('deptSelect').value || user.department;
+  const date = document.getElementById('dateFilter').value || '';
+  document.getElementById('absenteesArea').innerHTML = '<div class="small">Loading...</div>';
+  const res = await apiFetch({ action:'getAbsentees', department: dept, date });
+  if(!res.success){ document.getElementById('absenteesArea').innerHTML = 'Error: '+(res.message||''); return; }
+  absentees = res.absentees || [];
+  currentTotals = res.totals || null;
+  currentYearSummary = res.yearSummary || null;
+  renderAbsentees();
+  renderTotals();
+  renderYearSummary();
+  renderYearCards(); // ✅ render grid cards
+}
+
+// Optional: add this function to handle clicking on a card
+function viewSection(year, section){
+  const rows = absentees.filter(r=>r.Year==year && r.Section==section);
+  if(rows.length){
+    renderAbsenteesTable(rows); // reuse table render for that section
+  }
+}
+
+function renderAbsenteesTable(rows){
+  const area = document.getElementById('absenteesArea');
+  if(!rows.length){ area.innerHTML='<div class="small">No data</div>'; return; }
+  let html = '<table><thead><tr><th>Date</th><th>Hall</th><th>Seat</th><th>Roll</th><th>Name</th><th>Year</th><th>Section</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead><tbody>';
+  rows.forEach((r, idx)=>{
+    const reason = r.Reason||'';
+    html += `<tr data-idx="${idx}">
+      <td>${escapeHtml(r.Date||'')}</td>
+      <td>${escapeHtml(r.HallNo||'')}</td>
+      <td>${escapeHtml(r.SeatNo||'')}</td>
+      <td>${escapeHtml(r.RollNo||'')}</td>
+      <td>${escapeHtml(r.Name||'')}</td>
+      <td>${escapeHtml(r.Year||'')}</td>
+      <td>${escapeHtml(r.Section||'')}</td>
+      <td>${escapeHtml(r.Status||'')}</td>
+      <td><input id="reason_${idx}" value="${escapeHtml(reason)}" style="width:100%"></td>
+      <td><button class="btn" onclick="saveReason(${idx})">Save</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  area.innerHTML = html;
+}
+
+</script>
+</body>
+</html>
