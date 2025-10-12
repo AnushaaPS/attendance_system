@@ -93,6 +93,13 @@ async function uploadExcel(){
   else
     msg.textContent = "Upload failed: " + (res.message || "Unknown error");
 }
+
+  function logout() {
+      localStorage.removeItem("user");
+      location.href = "index.html";
+}
+  
 </script>
 </body>
 </html>
+
