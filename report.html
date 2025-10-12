@@ -236,7 +236,14 @@ async function downloadPDF(){
   const date=document.getElementById('filterDate').value || 'All';
   pdf.save(`absentees_OD_${date}_${selectedBatch || 'All'}.pdf`);
 }
+
+  function logout() {
+      localStorage.removeItem("user");
+      location.href = "index.html";
+}
+  
 </script>
 
 </body>
 </html>
+
