@@ -192,12 +192,13 @@ async function downloadCSV(){
   a.download = `CoE_Summary_${date}_${batch}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
   function logout() {
       localStorage.removeItem("user");
       location.href = "index.html";
 }
-}
 </script>
 </body>
 </html>
+
 
