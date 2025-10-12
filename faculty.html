@@ -352,6 +352,12 @@ function renderAbsenteesTable(rows){
   area.innerHTML = html;
 }
 
+function logout() {
+      localStorage.removeItem("user");
+      location.href = "index.html";
+}
+  
 </script>
 </body>
 </html>
+
