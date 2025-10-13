@@ -165,3 +165,44 @@ h2 {
     font-size: 12px;
   }
 }
+/* Prevent horizontal scroll due to large content */
+* {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Make buttons, inputs, and selects auto-adjust on mobile */
+@media (max-width: 768px) {
+  button, .btn, .btn-secondary, input, select {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  /* Stack header or control elements vertically */
+  .header, .toolbar, .filters, .actions, .top-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* Ensure tables remain scrollable */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce card shadow on small screens */
+  .card {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* For very small screens (under 400px width) */
+@media (max-width: 400px) {
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 1.1rem; }
+  th, td { font-size: 11px; }
+  .btn, .btn-secondary { font-size: 13px; padding: 6px 8px; }
+}
+
