@@ -1,50 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Attendance Lock/Unlock</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="style.css">
 <script src="common.js"></script>
 <style>
-body { font-family: Arial; margin: 18px; background: #f7f9fc; }
-.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 600px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
-.switch { position: relative; display: inline-block; width: 60px; height: 30px; }
+/* Reset and Body */
+* { box-sizing: border-box; margin:0; padding:0; font-family: 'Arial', sans-serif; }
+body { background: #e6f0ff; color: #111; padding: 16px; }
+
+/* Card Container */
+.card { 
+  background: #fff; 
+  max-width: 500px; 
+  margin: 30px auto; 
+  padding: 20px 25px; 
+  border-radius: 12px; 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  transition: 0.3s ease;
+}
+.card:hover { box-shadow: 0 12px 25px rgba(0,0,0,0.12); }
+
+/* Header */
+.card-header { display: flex; flex-direction: column; gap: 10px; }
+@media(min-width:500px){
+  .card-header { flex-direction: row; justify-content: space-between; align-items: center; }
+}
+h1 { color: #2463eb; font-size: 1.8em; }
+.small { font-size: 0.85em; color: #666; }
+
+/* Buttons */
+    .btn {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+      transform: scale(1.03);
+    }
+
+    .small { font-size: 13px; color: #555; }
+.btn-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+
+/* Toggle Switch */
+.switch { position: relative; display: inline-block; width: 60px; height: 30px; margin-left: 12px; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 30px; transition: 0.4s; }
 .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.4s; }
 input:checked + .slider { background-color: #2463eb; }
 input:checked + .slider:before { transform: translateX(30px); }
-body { font-family: Arial; margin: 18px; background: #f7f9fc; }
-.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
-.btn { background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
-.btn-secondary { background: #ccc; color: #333; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; margin-left: 8px; }
+
+/* Lock Section */
+.lock-section { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.lock-section label { font-weight: 500; }
+.lock-status { font-weight: bold; margin-left: 10px; }
+
+/* Responsive adjustments */
+@media(max-width:500px){
+  h1 { font-size: 1.5em; }
+  .btn { padding: 8px 12px; font-size: 0.9em; }
+  .lock-section { align-items: stretch; }
+}
 </style>
 </head>
 <body onload="initLock()">
 
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center">
+  <div class="card-header">
     <div>
-      <h1>Lock Entry</h1>
-      <div id="welcome" class="small"></div>
+      <h1>Lock Attendance</h1>
+      <span id="welcome" class="small">Welcome, Admin</span>
     </div>
-    <div>
-      <button class="btn" onclick="window.location.href='coe.html'">Go to Dashboard</button>
-      <button class="btn" onclick="window.location.href='report.html'">Go to Reports</button>
+    <div class="btn-group">
+      <button class="btn" onclick="window.location.href='coe.html'">Dashboard</button>
+      <button class="btn" onclick="window.location.href='report.html'">Reports</button>
       <button class="btn" onclick="window.location.href='upload.html'">Upload Users</button>
       <button class="btn" onclick="logout()">Logout</button>
     </div>
   </div>
-  <hr>
-  <div style="margin-top:16px">
+
+  <hr style="margin:15px 0; border:0.5px solid #ddd;">
+
+  <div class="lock-section">
     <label for="lockDate">Select Date:</label>
     <input type="date" id="lockDate" onchange="updateToggleState()" />
-    <label class="switch">
-      <input type="checkbox" id="lockToggle" onchange="toggleLockState()" />
-      <span class="slider"></span>
-    </label>
-    <span id="lockStatusText">Unlocked</span>
+
+    <div style="display:flex; align-items:center; margin-top:10px;">
+      <label class="switch">
+        <input type="checkbox" id="lockToggle" onchange="toggleLockState()" />
+        <span class="slider"></span>
+      </label>
+      <span id="lockStatusText" class="lock-status">Unlocked</span>
+    </div>
   </div>
 </div>
 
@@ -63,8 +118,15 @@ async function updateToggleState() {
   const res=await apiFetch({ action:'getLockStatus', date });
   const toggle=document.getElementById('lockToggle');
   const statusText=document.getElementById('lockStatusText');
-  if(res.success && res.lock==='Locked'){ toggle.checked=true; statusText.textContent='Locked'; statusText.style.color='red'; }
-  else { toggle.checked=false; statusText.textContent='Unlocked'; statusText.style.color='green'; }
+  if(res.success && res.lock==='Locked'){ 
+    toggle.checked=true; 
+    statusText.textContent='Locked'; 
+    statusText.style.color='red'; 
+  } else { 
+    toggle.checked=false; 
+    statusText.textContent='Unlocked'; 
+    statusText.style.color='green'; 
+  }
 }
 
 async function toggleLockState() {
@@ -74,13 +136,15 @@ async function toggleLockState() {
   const statusText=document.getElementById('lockStatusText');
   const newStatus=toggle.checked ? "Locked" : "Unlocked";
   const res=await apiFetch({ action:'setLockStatus', date, value:newStatus });
-  if(res.success){ statusText.textContent=newStatus; statusText.style.color=newStatus==='Locked'?'red':'green'; alert(`Attendance is now ${newStatus} for ${date}`);}
-  else alert("Failed: "+res.message);
+  if(res.success){ 
+    statusText.textContent=newStatus; 
+    statusText.style.color=newStatus==='Locked'?'red':'green'; 
+    alert(`Attendance is now ${newStatus} for ${date}`);
+  } else alert("Failed: "+res.message);
 }
-
   function logout() {
-      localStorage.removeItem("user");
-      location.href = "index.html";
+  localStorage.removeItem("user");
+  location.href = "index.html";
 }
 </script>
 
