@@ -7,28 +7,131 @@
   <link rel="stylesheet" href="style.css">
   <script src="common.js"></script>
   <style>
-    body { font-family: Arial; margin: 18px; background: #f7f9fc; }
-    .card { background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
-    .btn { background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
-    .small { font-size: 13px; color: #666; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 16px; }
-    .dept-card, .year-card, .section-card { 
-      background: #fff; padding: 16px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); 
-      transition: 0.2s ease; cursor: pointer;
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #e0f7fa, #e3f2fd, #f3e5f5);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
     }
-    .dept-card:hover, .year-card:hover, .section-card:hover { background: #f0f6ff; transform: scale(1.02); }
-    h2, h3, h4 { color: #2463eb; }
+
+    .card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      padding: 20px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 1100px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    h1 {
+      margin: 0;
+      color: #1e40af;
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+      transform: scale(1.03);
+    }
+
+    .small { font-size: 13px; color: #555; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .dept-card, .year-card, .section-card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      border: 1px solid #e0e7ff;
+    }
+
+    .dept-card:hover, .year-card:hover, .section-card:hover {
+      background: #eff6ff;
+      transform: translateY(-4px);
+    }
+
+    h2, h3, h4 {
+      color: #1e40af;
+      margin-bottom: 6px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    input[type="date"], select {
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 10px;
+        align-items: stretch;
+      }
+
+      .card {
+        padding: 15px;
+        border-radius: 12px;
+      }
+
+      .btn {
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      h1 { font-size: 22px; }
+
+      .grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      .dept-card, .year-card, .section-card {
+        padding: 14px;
+      }
+    }
   </style>
 </head>
 <body onload="initCoEDashboard()">
 
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
     <div>
       <h1>CoE Dashboard</h1>
       <div id="welcome" class="small"></div>
     </div>
-    <div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
       <button class="btn" onclick="window.location.href='report.html'">Go to Reports</button>
       <button class="btn" onclick="window.location.href='lock.html'">Lock Editing</button>
       <button class="btn" onclick="window.location.href='upload.html'">Upload Users</button>
@@ -38,7 +141,7 @@
   <hr>
 
   <section>
-    <div style="margin-bottom:12px; display:flex; gap:10px; align-items:center;">
+    <div style="margin-bottom:12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
       <label>Date:</label>
       <input type="date" id="filterDate">
 
@@ -65,7 +168,6 @@ function initCoEDashboard(){
   document.getElementById('welcome').innerText = `Signed in as: ${user.name}`;
 }
 
-// Load summary for selected date & batch
 async function loadSummary(){
   const date = document.getElementById('filterDate').value;
   const batch = document.getElementById('filterBatch').value;
@@ -78,7 +180,6 @@ async function loadSummary(){
   renderDeptSummary(res.deptSummary);
 }
 
-// Department summary
 function renderDeptSummary(ds){
   const area = document.getElementById('summaryArea');
   if(!ds){ area.innerHTML='<div class="small">No data</div>'; return; }
@@ -193,12 +294,11 @@ async function downloadCSV(){
   a.click();
   URL.revokeObjectURL(url);
 }
-  function logout() {
-      localStorage.removeItem("user");
-      location.href = "index.html";
+
+function logout() {
+  localStorage.removeItem("user");
+  location.href = "index.html";
 }
 </script>
 </body>
 </html>
-
-
