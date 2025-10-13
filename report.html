@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>CoE Report & CSV Download</title>
@@ -10,51 +10,190 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <style>
-body { font-family: Arial; margin: 18px; background: #f7f9fc; }
-.card { background: #fff; padding: 18px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
-.btn { background: #2463eb; color: #fff; padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; }
-.btn-secondary { background: #ccc; color: #333; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; margin-left: 8px; }
-table { font-size: 13px; }
+/* ---------- Base Layout ---------- */
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  background: linear-gradient(135deg, #f1f5ff, #e3e8f0);
+  color: #333;
+  padding: 12px;
+}
+
+/* ---------- Card Style ---------- */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* ---------- Header Buttons ---------- */
+.header-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+    .btn {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+      transform: scale(1.03);
+    }
+
+    .small { font-size: 13px; color: #555; }
+
+.btn-secondary {
+  background: #e5e7eb;
+  color: #111;
+}
+.btn-secondary:hover { background: #d1d5db; }
+
+/* ---------- Title ---------- */
+h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+  color: #1e3a8a;
+}
+#welcome {
+  color: #555;
+  font-size: 14px;
+}
+
+/* ---------- Filter Section ---------- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  background: #f8fafc;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.filter-bar select,
+.filter-bar input {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+/* ---------- Table Section ---------- */
+#reportTable {
+  margin-top: 20px;
+  overflow-x: auto;
+  border-radius: 8px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: #fff;
+  min-width: 900px;
+}
+th, td {
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: left;
+  font-size: 13px;
+}
+th {
+  background: #2563eb;
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+/* ---------- Responsive Design ---------- */
+@media (max-width: 768px) {
+  .card {
+    padding: 14px;
+  }
+
+  h1 {
+    font-size: 18px;
+  }
+
+  .header-buttons {
+    justify-content: center;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  table {
+    font-size: 12px;
+    min-width: 700px;
+  }
+
+  .btn {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+}
 </style>
 </head>
+
 <body onload="initReport()">
 
 <div class="card">
-  <div style="display:flex;justify-content:space-between;align-items:center">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
     <div>
       <h1>Attendance Report</h1>
       <div id="welcome" class="small"></div>
     </div>
-    <div>
-      <button class="btn" onclick="window.location.href='coe.html'">Go to Dashboard</button>
-      <button class="btn" onclick="window.location.href='lock.html'">Lock Editing</button>
-      <button class="btn" onclick="window.location.href='upload.html'">Upload Users</button>
-      <button class="btn" onclick="logout()">Logout</button>
+    <div class="header-buttons">
+      <button class="btn" onclick="window.location.href='coe.html'">Dashboard</button>
+      <button class="btn" onclick="window.location.href='lock.html'">Lock</button>
+      <button class="btn" onclick="window.location.href='upload.html'">Upload</button>
+      <button class="btn btn-secondary" onclick="logout()">Logout</button>
     </div>
   </div>
-  <hr>
 
-  <div style="margin:12px 0">
-    <label>Filter By:</label>
+  <hr style="margin:14px 0;">
+
+  <div class="filter-bar">
+    <label><b>Filter By:</b></label>
     <select id="filterType" onchange="onFilterChange()">
       <option value="Overall">Overall</option>
       <option value="Department">Department</option>
       <option value="Hall">Hall</option>
       <option value="Date">Date</option>
     </select>
+
     <select id="filterValue" style="display:none"></select>
     <input type="date" id="filterDate" style="display:none" />
-    <select id="filterBatch" style="display:none; margin-left:8px;">
+    <select id="filterBatch" style="display:none;">
       <option value="">Select Batch</option>
       <option value="FN">FN</option>
       <option value="AN">AN</option>
     </select>
-    <button class="btn" onclick="loadReport()">Load Report</button>
-    <button class="btn" onclick="downloadCSV()">Download CSV</button>
-    <button class="btn" onclick="downloadPDF()">Download PDF</button>
+
+    <button class="btn" onclick="loadReport()">Load</button>
+    <button class="btn" onclick="downloadCSV()">CSV</button>
+    <button class="btn" onclick="downloadPDF()">PDF</button>
   </div>
-  
-  <div id="reportTable" style="margin-top:20px;"></div>
+
+  <div id="reportTable"></div>
 </div>
 
 <script>
@@ -79,7 +218,6 @@ function populateFilters(){
   const sel=document.getElementById('filterValue');
   sel.innerHTML='';
   
-  // Create all options and mark type
   depts.forEach(d=>{
     const op=document.createElement('option');
     op.value=d; op.text=d; op.dataset.type='Department';
@@ -132,10 +270,10 @@ async function loadReport(){
   if(type==='Date' && dateVal) filtered = filtered.filter(r=>r.Date===dateVal);
   if(batchVal) filtered = filtered.filter(r => ((r.Batch||'').trim().toUpperCase()) === batchVal.toUpperCase());
 
-lastReport = filtered.filter(r => {
-  const st = (r.Status || '').trim().toUpperCase();
-  return st === 'ABSENT' || st === 'OD';
-});
+  lastReport = filtered.filter(r => {
+    const st = (r.Status || '').trim().toUpperCase();
+    return st === 'ABSENT' || st === 'OD';
+  });
 
   renderReportTable();
 }
@@ -144,8 +282,8 @@ function renderReportTable(){
   const container=document.getElementById('reportTable');
   const headers=["Date","Batch","RollNo","Name","Department","Year","Section","HallNo","SeatNo","SubjectCode","Subject","Status","Reason"];
 
-  let html='<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;background:#fff;">';
-  html+='<thead><tr style="background:#2463eb;color:#fff;">';
+  let html='<table>';
+  html+='<thead><tr>';
   headers.forEach(h=>html+=`<th>${h}</th>`);
   html+='</tr></thead><tbody>';
 
@@ -199,7 +337,7 @@ async function downloadPDF(){
 
   const logo=document.createElement('img');
   logo.src='logo.jpeg';
-  logo.style.width='300px';
+  logo.style.width='250px';
   logo.style.display='block';
   logo.style.margin='0 auto 10px auto';
   clone.insertBefore(logo,clone.firstChild);
@@ -237,13 +375,11 @@ async function downloadPDF(){
   pdf.save(`absentees_OD_${date}_${selectedBatch || 'All'}.pdf`);
 }
 
-  function logout() {
-      localStorage.removeItem("user");
-      location.href = "index.html";
+function logout() {
+  localStorage.removeItem("user");
+  location.href = "index.html";
 }
-  
 </script>
 
 </body>
 </html>
-
