@@ -6,6 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="common.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
 
 <style>
   /* === Global === */
@@ -40,7 +44,6 @@
 
   #welcome {
     font-size: 14px;
-    color: #fff;
     opacity: 0.9;
   }
 
@@ -256,6 +259,21 @@
 
     <hr>
 
+    <div class="card">
+  <h2>Download Hall Plan</h2>
+  <label for="planDate">Select Date:</label>
+  <input type="date" id="planDate" class="input" />
+
+  <label for="planBatch">Select Batch:</label>
+  <select id="planBatch" class="input">
+    <option value="">-- Select --</option>
+    <option value="FN">FN</option>
+    <option value="AN">AN</option>
+  </select>
+
+  <button class="btn" onclick="downloadHallPlan()">Download Hall Plan PDF</button>
+</div>
+
     <!-- Absentees & Summary -->
     <section>
       <h2>🧾 Absentees & Summary</h2>
@@ -352,7 +370,7 @@ async function uploadExcel(){
       "Year": r['Year'] || '',
       "Section": r['Section'] || ''
     }));
-    const res = await apiFetch({ action:'uploadUsers', rows: normalized });
+    const res = await apiFetch({ action:'uploadSeating', rows: normalized });
     if(res.success) msg.textContent = `Uploaded ${res.count} rows`;
     else msg.textContent = 'Upload failed: ' + (res.message||JSON.stringify(res));
   } catch(err){ console.error(err); msg.textContent = 'Error: '+err.message; }
@@ -561,7 +579,193 @@ function logout() {
       location.href = "index.html";
 }
   
+  // Replace existing downloadHallPlan() / generatePDF() with these
+
+  async function downloadHallPlan() {
+    const selectedDate = document.getElementById("planDate").value;
+    const selectedBatch = document.getElementById("planBatch").value;
+
+    if (!selectedDate || !selectedBatch) {
+      alert("Please select both Date and Batch (FN/AN)");
+      return;
+    }
+
+    try {
+      // Call your backend via apiFetch (same pattern used elsewhere in the app)
+      const res = await apiFetch({ action: 'getStudentSeatingData', date: selectedDate, batch: selectedBatch });
+
+      // The Apps Script handler returns a plain array (or different shapes depending on implementation).
+      // Be defensive and accept a few possible shapes:
+      let data = null;
+      if (!res) {
+        alert("No response from server");
+        return;
+      }
+      if (Array.isArray(res)) data = res;
+      else if (res.success && Array.isArray(res.data)) data = res.data;
+      else if (res.rows && Array.isArray(res.rows)) data = res.rows;
+      else if (res.hallData && Array.isArray(res.hallData)) data = res.hallData;
+      else if (res.result && Array.isArray(res.result)) data = res.result;
+      else {
+        // if backend returned the raw array wrapped in an object-less JSON, apiFetch may have returned it already above.
+        // If nothing matched, try to treat res as data if it's an object array-like
+        if (typeof res === 'object' && Object.keys(res).length && !res.success) {
+          // fallback: try to find arrays inside object
+          const arr = Object.values(res).find(v => Array.isArray(v));
+          if (arr) data = arr;
+        }
+      }
+
+      if (!data || !data.length) {
+        alert("No seating data found for the selected date and batch.");
+        return;
+      }
+
+      await generatePDF(data);
+    } catch (err) {
+      console.error("downloadHallPlan error:", err);
+      alert("Error fetching hall plan: " + (err.message || err));
+    }
+  }
+
+async function generatePDF(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    alert("No data to generate PDF.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF("landscape", "pt", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const logoUrl = "logo.jpeg"; // replace with your logo path
+
+  const getField = (obj, names) => {
+    for (const n of names) if (obj[n] !== undefined && obj[n] !== null) return obj[n];
+    return "";
+  };
+
+  // Use first row to get date & batch for filename
+  const firstSample = data[0] || {};
+  const rawDateForFile = getField(firstSample, ["Date", "date"]) || "unknown";
+  const dateObjForFile = new Date(rawDateForFile);
+  const dateForName = `${dateObjForFile.getDate().toString().padStart(2,'0')}_${(dateObjForFile.getMonth()+1).toString().padStart(2,'0')}_${dateObjForFile.getFullYear()}`;
+  const batchTextForName = getField(firstSample, ["Batch", "batch"]) || "Batch";
+
+  const halls = [...new Set(data.map(row => getField(row, ["Hall No", "HallNo"])))].filter(Boolean);
+
+  // Load logo
+  let imgData = null;
+  try {
+    const resp = await fetch(logoUrl);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      imgData = canvas.toDataURL("image/jpeg");
+    }
+  } catch(e) { console.warn("Logo load failed:", e); }
+
+  for (let i = 0; i < halls.length; i++) {
+    const hall = halls[i];
+    const students = data.filter(r => getField(r, ["Hall No", "HallNo"]) == hall);
+
+    if (i > 0) doc.addPage();
+
+    // === Logo ===
+    let y = 20;
+    if (imgData) {
+      const logoWidth = 250;
+      const logoHeight = 50;
+      doc.addImage(imgData, "JPEG", (pageWidth - logoWidth)/2, y, logoWidth, logoHeight);
+      y += logoHeight + 30;
+    }
+
+    // === Centered main headers ===
+    doc.setFont("times", "bold");
+    doc.setFontSize(16);
+    const centerText = (txt, yPos) => doc.text(txt, pageWidth/2, yPos, { align: "center" });
+    centerText("KAMARAJ COLLEGE OF ENGINEERING AND TECHNOLOGY", y); y += 20;
+    doc.setFontSize(12);
+    centerText("Office of the Controller of Examinations", y); y += 18;
+    centerText("ODD Semester of 2025 – 2026", y); y += 18;
+    centerText("HALL WISE SEATING ARRANGEMENT", y); y += 18;
+    centerText("DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING", y); y += 18;
+    centerText("INTERNAL EXAMINATION – I", y); y += 25;
+
+    // === Date / Session / Hall ===
+    const sample = students[0] || data[0];
+    const rawDate = getField(sample, ["Date", "date"]);
+    const dateObj = new Date(rawDate);
+    const dateStr = `${dateObj.getDate().toString().padStart(2,'0')}-${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getFullYear()}`;
+    const batchText = getField(sample, ["Batch", "batch"]);
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(12);
+    doc.text(`Date: ${dateStr}`, 50, y); // left
+    doc.text(`Session: ${batchText}`, pageWidth/2, y, { align: "center" }); // center
+    doc.text(`Hall: ${hall}`, pageWidth - 50, y, { align: "right" }); // right
+    y += 15;
+
+    // === Seats Table ===
+    const seatSeries = {};
+    students.forEach(s => {
+  const seatNo = getField(s, ["Seating No", "SeatNo", "Seat No"]);
+  if (!seatNo) return;
+  const series = seatNo.match(/^[A-Z]+/i)?.[0] || "?";
+  if (!seatSeries[series]) seatSeries[series] = [];
+  const seatNum = parseInt(seatNo.match(/\d+/)?.[0] || "0");
+  seatSeries[series].push({ seatNo, roll: getField(s, ["Student Roll No", "RollNo", "Roll No"]), seatNum });
+});
+
+// After collecting, sort each series numerically
+Object.keys(seatSeries).forEach(series => {
+  seatSeries[series].sort((a, b) => a.seatNum - b.seatNum);
+});
+
+    const maxRows = Math.max(...Object.values(seatSeries).map(arr => arr.length));
+
+    const tableHeaderRow = [];
+    const tableBody = [];
+    const tableHeader = Object.keys(seatSeries).sort();
+    for (let _ of tableHeader) tableHeaderRow.push("Seat No", "Roll No");
+
+    for (let r = 0; r < maxRows; r++) {
+      const row = [];
+      for (const s of tableHeader) {
+        const seat = seatSeries[s][r];
+        row.push(seat ? seat.seatNo : "", seat ? seat.roll : "");
+      }
+      tableBody.push(row);
+    }
+
+    doc.autoTable({
+      head: [tableHeaderRow],
+      body: tableBody,
+      startY: y,
+      theme: 'grid',
+      headStyles: { fillColor: [36, 99, 235], textColor: 255, halign: "center" },
+      styles: { font: "times", fontSize: 10, halign: "center", valign: "middle" },
+      tableWidth: 'auto',
+      showHead: 'everyPage',
+      margin: { left: 40, right: 40 }
+    });
+
+    // === Footer ===
+    doc.setFontSize(10);
+    doc.text("Department Exam Cell In-charge", 60, pageHeight - 40);
+    doc.text("HoD", pageWidth - 60, pageHeight - 40, { align: "right" });
+  }
+
+  // Save PDF
+  doc.save(`HallPlan_${dateForName}_${batchTextForName}.pdf`);
+}
+
+
 </script>
 </body>
 </html>
-
