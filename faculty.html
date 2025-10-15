@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 
+
 <style>
   /* === Global === */
   body {
@@ -44,6 +45,7 @@
 
   #welcome {
     font-size: 14px;
+    color: #fff;
     opacity: 0.9;
   }
 
@@ -259,7 +261,6 @@
 
     <hr>
 
-    <div class="card">
   <h2>Download Hall Plan</h2>
   <label for="planDate">Select Date:</label>
   <input type="date" id="planDate" class="input" />
@@ -271,8 +272,14 @@
     <option value="AN">AN</option>
   </select>
 
+  <label for="internalExam">Select Exam:</label>
+<select id="internalExam" class="input">
+  <option value="I">Internal Exam I</option>
+  <option value="II">Internal Exam II</option>
+</select>
+
   <button class="btn" onclick="downloadHallPlan()">Download Hall Plan PDF</button>
-</div>
+
 
     <!-- Absentees & Summary -->
     <section>
@@ -302,6 +309,9 @@
       <div id="yearCardArea"></div>
 
       <div id="yearSummaryArea" class="table-container"></div>
+      <button class = "btn" id="downloadYearSummary">Download Excel</button>
+<div id="yearSummaryArea"></div>
+
     </section>
   </div>
 
@@ -446,6 +456,25 @@ function renderYearSummary(){
   }
   html += '</tbody></table>';
   area.innerHTML = html;
+  // === Download Excel ===
+document.getElementById('downloadYearSummary').addEventListener('click', () => {
+  if(!currentYearSummary) { alert("No data to export"); return; }
+
+  const ws_data = [["Year","Section","Total","Present","Absent","OD","Attendance %"]];
+  for(const yr of Object.keys(currentYearSummary).sort()){
+    const y = currentYearSummary[yr];
+    for(const sec of Object.keys(y.sections).sort()){
+      const s = y.sections[sec];
+      const pct = s.total===0?0:Math.round((s.present / s.total)*10000)/100;
+      ws_data.push([yr, sec, s.total, s.present, s.absent, s.od, pct]);
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, "Year Summary");
+  XLSX.writeFile(wb, "YearSummary.xlsx");
+});
 }
 
 async function saveReason(idx) {
@@ -580,72 +609,71 @@ function logout() {
 }
   
   // Replace existing downloadHallPlan() / generatePDF() with these
+async function downloadHallPlan() {
+  const selectedDate = document.getElementById("planDate").value;
+  const selectedBatch = document.getElementById("planBatch").value;
+  const selectedExam = document.getElementById("internalExam").value;
 
-  async function downloadHallPlan() {
-    const selectedDate = document.getElementById("planDate").value;
-    const selectedBatch = document.getElementById("planBatch").value;
+  if (!selectedDate || !selectedBatch || !selectedExam) {
+    alert("Please select Date, Batch, and Internal Exam");
+    return;
+  }
 
-    if (!selectedDate || !selectedBatch) {
-      alert("Please select both Date and Batch (FN/AN)");
+  const user = JSON.parse(localStorage.getItem("user"));
+  if (!user || !user.department) {
+    alert("Department information missing. Please login again.");
+    return;
+  }
+
+  try {
+    const res = await apiFetch({
+      action: "getStudentSeatingData",
+      date: selectedDate,
+      batch: selectedBatch,
+      department: user.department
+    });
+
+    let data = Array.isArray(res) ? res : res.success ? res.data : res.result;
+    if (!data || data.length === 0) {
+      alert("No seating data found for your department on this date and batch.");
       return;
     }
 
-    try {
-      // Call your backend via apiFetch (same pattern used elsewhere in the app)
-      const res = await apiFetch({ action: 'getStudentSeatingData', date: selectedDate, batch: selectedBatch });
-
-      // The Apps Script handler returns a plain array (or different shapes depending on implementation).
-      // Be defensive and accept a few possible shapes:
-      let data = null;
-      if (!res) {
-        alert("No response from server");
-        return;
-      }
-      if (Array.isArray(res)) data = res;
-      else if (res.success && Array.isArray(res.data)) data = res.data;
-      else if (res.rows && Array.isArray(res.rows)) data = res.rows;
-      else if (res.hallData && Array.isArray(res.hallData)) data = res.hallData;
-      else if (res.result && Array.isArray(res.result)) data = res.result;
-      else {
-        // if backend returned the raw array wrapped in an object-less JSON, apiFetch may have returned it already above.
-        // If nothing matched, try to treat res as data if it's an object array-like
-        if (typeof res === 'object' && Object.keys(res).length && !res.success) {
-          // fallback: try to find arrays inside object
-          const arr = Object.values(res).find(v => Array.isArray(v));
-          if (arr) data = arr;
-        }
-      }
-
-      if (!data || !data.length) {
-        alert("No seating data found for the selected date and batch.");
-        return;
-      }
-
-      await generatePDF(data);
-    } catch (err) {
-      console.error("downloadHallPlan error:", err);
-      alert("Error fetching hall plan: " + (err.message || err));
-    }
+    // Pass department dynamically
+    await generatePDF(data, selectedExam, user.department);
+  } catch (err) {
+    console.error("downloadHallPlan error:", err);
+    alert("Error fetching hall plan: " + (err.message || err));
   }
+}
 
-async function generatePDF(data) {
+async function generatePDF(data, examType, department) {
   if (!Array.isArray(data) || data.length === 0) {
     alert("No data to generate PDF.");
     return;
   }
 
+  const departmentMap = {
+    "CSE": "COMPUTER SCIENCE AND ENGINEERING",
+    "ECE": "ELECTRONICS AND COMMUNICATION ENGINEERING",
+    "ME": "MECHANICAL ENGINEERING",
+    "CE": "CIVIL ENGINEERING",
+    "ADS": "ARTIFICIAL INTELLIGENCE AND DATA SCIENCE"
+  };
+
+  const departmentFullName = departmentMap[department] || department.toUpperCase();
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF("landscape", "pt", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const logoUrl = "logo.jpeg"; // replace with your logo path
+  const logoUrl = "logo.jpeg";
 
   const getField = (obj, names) => {
     for (const n of names) if (obj[n] !== undefined && obj[n] !== null) return obj[n];
     return "";
   };
 
-  // Use first row to get date & batch for filename
   const firstSample = data[0] || {};
   const rawDateForFile = getField(firstSample, ["Date", "date"]) || "unknown";
   const dateObjForFile = new Date(rawDateForFile);
@@ -685,17 +713,17 @@ async function generatePDF(data) {
       y += logoHeight + 30;
     }
 
-    // === Centered main headers ===
+    // === Headers ===
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     const centerText = (txt, yPos) => doc.text(txt, pageWidth/2, yPos, { align: "center" });
-    centerText("KAMARAJ COLLEGE OF ENGINEERING AND TECHNOLOGY", y); y += 20;
+    centerText("UNJHA V.DHANASAMY – D.PARIMALA DEVI EXAMINATION CELL", y); y += 20;
     doc.setFontSize(12);
     centerText("Office of the Controller of Examinations", y); y += 18;
     centerText("ODD Semester of 2025 – 2026", y); y += 18;
     centerText("HALL WISE SEATING ARRANGEMENT", y); y += 18;
-    centerText("DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING", y); y += 18;
-    centerText("INTERNAL EXAMINATION – I", y); y += 25;
+    centerText(`DEPARTMENT OF ${departmentFullName}`, y); y += 18;
+    centerText(`INTERNAL EXAMINATION – ${examType}`, y); y += 25;
 
     // === Date / Session / Hall ===
     const sample = students[0] || data[0];
@@ -706,34 +734,40 @@ async function generatePDF(data) {
 
     doc.setFont("times", "normal");
     doc.setFontSize(12);
-    doc.text(`Date: ${dateStr}`, 50, y); // left
-    doc.text(`Session: ${batchText}`, pageWidth/2, y, { align: "center" }); // center
-    doc.text(`Hall: ${hall}`, pageWidth - 50, y, { align: "right" }); // right
+    doc.text(`Date: ${dateStr}`, 50, y);
+    doc.text(`Session: ${batchText}`, pageWidth/2, y, { align: "center" });
+    doc.text(`Hall: ${hall}`, pageWidth - 50, y, { align: "right" });
     y += 15;
 
-    // === Seats Table ===
+    // === Seat Table ===
     const seatSeries = {};
     students.forEach(s => {
-  const seatNo = getField(s, ["Seating No", "SeatNo", "Seat No"]);
-  if (!seatNo) return;
-  const series = seatNo.match(/^[A-Z]+/i)?.[0] || "?";
-  if (!seatSeries[series]) seatSeries[series] = [];
-  const seatNum = parseInt(seatNo.match(/\d+/)?.[0] || "0");
-  seatSeries[series].push({ seatNo, roll: getField(s, ["Student Roll No", "RollNo", "Roll No"]), seatNum });
-});
+      const seatNo = getField(s, ["Seating No", "SeatNo", "Seat No"]);
+      if (!seatNo) return;
+      const series = seatNo.match(/^[A-Z]+/i)?.[0] || "?";
+      if (!seatSeries[series]) seatSeries[series] = [];
+      const seatNum = parseInt(seatNo.match(/\d+/)?.[0] || "0");
+      seatSeries[series].push({
+        seatNo,
+        roll: getField(s, ["Student Roll No", "RollNo", "Roll No"]),
+        seatNum,
+        year: getField(s, ["Year", "year"]),
+        section: getField(s, ["Section", "section"]),
+        department: getField(s, ["Department", "Dept", "department"]),
+        subject: getField(s, ["Subject Code", "SubjectCode", "Subject"])
+      });
+    });
 
-// After collecting, sort each series numerically
-Object.keys(seatSeries).forEach(series => {
-  seatSeries[series].sort((a, b) => a.seatNum - b.seatNum);
-});
+    Object.keys(seatSeries).forEach(series => {
+      seatSeries[series].sort((a, b) => a.seatNum - b.seatNum);
+    });
 
     const maxRows = Math.max(...Object.values(seatSeries).map(arr => arr.length));
-
-    const tableHeaderRow = [];
-    const tableBody = [];
     const tableHeader = Object.keys(seatSeries).sort();
+    const tableHeaderRow = [];
     for (let _ of tableHeader) tableHeaderRow.push("Seat No", "Roll No");
 
+    const tableBody = [];
     for (let r = 0; r < maxRows; r++) {
       const row = [];
       for (const s of tableHeader) {
@@ -743,28 +777,103 @@ Object.keys(seatSeries).forEach(series => {
       tableBody.push(row);
     }
 
+    // === Column-wise year-section + count ===
+    const maxSubRows = Math.max(
+      ...Object.values(seatSeries).map(group => {
+        const map = {};
+        group.forEach(s => {
+          const key = `${s.year || ""} ${s.section || ""}`.trim();
+          map[key] = (map[key] || 0) + 1;
+        });
+        return Object.keys(map).length;
+      })
+    );
+
+    for (let subRow = 0; subRow < maxSubRows; subRow++) {
+      const row = [];
+      for (const s of tableHeader) {
+        const group = seatSeries[s];
+        if (group && group.length > 0) {
+          const map = {};
+          group.forEach(st => {
+            const key = `${st.year || ""} ${st.department || ""} ${st.section || ""}`.trim();
+            map[key] = (map[key] || 0) + 1;
+          });
+          const entries = Object.entries(map);
+          if (entries[subRow]) {
+            const [yrsec, cnt] = entries[subRow];
+            row.push(yrsec, cnt.toString());
+          } else {
+            row.push("", "");
+          }
+        } else {
+          row.push("", "");
+        }
+      }
+      tableBody.push(row);
+    }
+
+    // === Grand Total (bold) at last column ===
+    const grandRow = new Array(tableHeader.length * 2).fill("");
+    const lastSeatIndex = tableHeader.length * 2 - 2;
+    grandRow[lastSeatIndex] = "Total";
+    grandRow[lastSeatIndex + 1] = students.length.toString();
+    tableBody.push(grandRow);
+
+    // === Table ===
     doc.autoTable({
       head: [tableHeaderRow],
       body: tableBody,
       startY: y,
-      theme: 'grid',
-      headStyles: { fillColor: [36, 99, 235], textColor: 255, halign: "center" },
-      styles: { font: "times", fontSize: 10, halign: "center", valign: "middle" },
-      tableWidth: 'auto',
-      showHead: 'everyPage',
+      theme: "grid",
+      headStyles: { fillColor: [255, 255, 255], textColor: 0, lineColor: 0, lineWidth: 0.5, fontStyle: "bold" },
+      styles: {
+        font: "times",
+        fontSize: 10,
+        textColor: 0,
+        halign: "center",
+        valign: "middle",
+        lineColor: 0,
+        lineWidth: 0.5,
+        fontStyle: "normal"
+      },
+      didParseCell: function (data) {
+        // Bold all Roll Numbers and Grand Total
+        if (data.cell.raw && (data.cell.raw.match(/^[0-9]{2}[A-Z]+[0-9]+$/i) || data.cell.raw === "Total" || data.cell.raw === students.length.toString())) {
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
+      tableWidth: "auto",
       margin: { left: 40, right: 40 }
     });
 
+    // === Subject Summary ===
+    const subjectCounts = {};
+    students.forEach(s => {
+      const subj = getField(s, ["Subject Code", "SubjectCode", "Subject"]);
+      if (subj) subjectCounts[subj] = (subjectCounts[subj] || 0) + 1;
+    });
+
+    let subjY = doc.lastAutoTable.finalY + 25;
+    doc.setFont("times", "bold");
+    doc.setFontSize(12);
+    doc.text("Subject-wise Count:", 60, subjY);
+    subjY += 25;
+
+    doc.setFont("times", "normal");
+    Object.entries(subjectCounts).forEach(([subj, count]) => {
+      doc.text(`${subj} - ${count}`, 80, subjY);
+      subjY += 14;
+    });
+
     // === Footer ===
-    doc.setFontSize(10);
-    doc.text("Department Exam Cell In-charge", 60, pageHeight - 40);
-    doc.text("HoD", pageWidth - 60, pageHeight - 40, { align: "right" });
+    doc.setFontSize(13);
+    doc.text("Department Exam Cell In-charge", 90, pageHeight - 40);
+    doc.text("HoD", pageWidth - 130, pageHeight - 40, { align: "right" });
   }
 
-  // Save PDF
-  doc.save(`HallPlan_${dateForName}_${batchTextForName}.pdf`);
+  doc.save(`HallPlan_${dateForName}_${batchTextForName}_Exam${examType}.pdf`);
 }
-
 
 </script>
 </body>
