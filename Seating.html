@@ -1,0 +1,623 @@
+<!doctype html> 
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Exam Seating — Multi‑Hall Allotment</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+:root {
+
+  --accent:#06b6d4; --accent2:#7c3aed; --muted:#94a3b8;
+
+  --seat-bg:#f0f9ff; --seat-hover:#d1f0ff;
+
+  --yearI:#60a5fa; --yearII:#4ade80; --yearIII:#fbbf24; --yearIV:#f87171;
+
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{font-family:Poppins,system-ui,Arial;background:linear-gradient(180deg,#e6f9ff,#f7f5ff);color:#052029;padding:10px;}
+
+.wrap{max-width:1200px;margin:0 auto;}
+
+header{display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+
+.logo{width:64px;height:64px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;}
+
+h1{font-size:22px;margin:0;}
+
+p.lead{color:#0b5564;font-size:14px;}
+
+.main{display:grid;grid-template-columns:380px 1fr;gap:18px;}
+
+.card{background:white;border-radius:25px;padding:16px;box-shadow:0 6px 24px rgba(13,38,52,0.06);width: 100%}
+
+label{display:block;font-size:13px;color:#073741;margin-top:10px;}
+
+select,input[type=text],input[type=date],input[type=number],button{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(3,37,45,0.06);font-size:14px;}
+
+.row{display:flex;gap:8px;}
+
+.small{font-size:12px;color:var(--muted);}
+
+.btn{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#021;cursor:pointer;border:none;padding:10px;border-radius:8px;font-weight:700;transition:0.3s;}
+
+.btn:hover{opacity:0.9;}
+
+.btn.ghost{background:transparent;border:1px solid rgba(3,37,45,0.06);color:#073741;}
+
+.hall-item { grid-template-columns: 1fr; gap: 6px; }
+  .hall-item input, .hall-item select, .hall-item button { width: 100%; }
+
+.add-hall{display:flex;gap:8px;margin-top:10px;}
+
+.preview-area{align-items:cente;display:grid;gap:6px;}
+
+.seatmap{display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:12px;background:linear-gradient(180deg,#f8fcff,#fbf7ff);}
+
+.seat-row{display:flex;gap:2px;align-items:center;flex-wrap:wrap;}
+
+.row-label{width:60px;text-align:center;color:var(--muted);font-weight:600;}
+
+.seat{min-width:60px;height:30px;border-radius:8px;background:var(--seat-bg);border:1px solid #e6eef3;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:10px;position:relative;transition:0.3s;}
+
+.seat.I{background:var(--yearI);}
+
+.seat.II{background:var(--yearII);}
+
+.seat.III{background:var(--yearIII);}
+
+.seat.IV{background:var(--yearIV);}
+
+.seat:hover{background:var(--seat-hover);}
+
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+
+th,td{padding:8px;border:1px solid #e6eef3;text-align:left;font-size:13px;}
+
+th{background:#edf7fb;}
+
+.controls{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+
+footer{margin-top:12px;color:#6a7d86;font-size:13px;}
+
+@media(max-width:980px){.main{grid-template-columns:1fr;}}
+/* Mobile Compatibility */
+@media (max-width:980px) {
+  .main { grid-template-columns: 1fr; }
+  .hall-item { grid-template-columns: 1fr; gap: 6px; }
+  .hall-item input, .hall-item select, .hall-item button { width: 100%; }
+  .seat { min-width: 40px; height: 20px; font-size: 6px; }
+  .row-label { width: 20px; font-size: 8px; }
+  .controls { flex-direction: column; gap: 6px; }
+  header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .logo { width: 50px; height: 50px; font-size: 18px; }
+  h1 { font-size: 18px; }
+  p.lead { font-size: 12px; }
+  .preview-area { min-height: 200px; }
+.seat-row{display:flex;gap:2px;align-items:center;flex-wrap:wrap;}
+  
+}
+@media (max-width:600px) {
+  .seat { min-width: 40px; height: 20px; font-size: 6px; }
+  .row-label { width: 20px; font-size: 6px; }
+  .controls button { font-size: 12px; padding: 8px; }
+  .hall-item { grid-template-columns: 1fr; gap: 2px; }
+  
+}
+
+
+</style>
+
+</head>
+
+<body>
+
+<div class="wrap">
+
+<header>
+
+  <div class="logo">ES</div>
+
+  <div>
+
+    <h1>Exam Seating — Multi‑Hall Allotment</h1>
+
+    
+
+  </div>
+
+</header>
+
+
+
+
+<div class="main">
+
+<div>
+
+  <div class="card">
+
+    <label>Date</label>
+
+    <input type="date" id="inpDate">
+
+
+
+    <label>Department</label>
+
+    <select id="inpDept">
+
+      <option value="">-- Select --</option>
+
+      <option value="CSE">CSE</option>
+      <option value="ECE">ECE</option>
+      <option value="EEE">EEE</option>
+      <option value="IT">IT</option>
+      <option value="BT">BT</option>
+      <option value="ME">ME</option>
+      <option value="MTR">MTR</option>
+      <option value="CE">CIVIL</option>
+      <option value="ADS">ADS</option>
+ <option value="FY">FY</option>
+      
+
+    </select>
+
+
+
+    <label>Batch</label>
+
+    <select id="inpBatch">
+
+      <option value="">-- Select --</option>
+
+      <option value="FN">FN</option>
+
+      <option value="AN">AN</option>
+
+    </select>
+
+
+
+    <label>Upload Student File (.xlsx / .csv)</label>
+
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+
+    <div class="small">Template columns: <code>Roll No,Name,Year,Section,Subject Code,Subject Name</code></div>
+
+    <div class="controls">
+
+      <button class="btn" id="btnTemplate">Download Template</button>
+
+      <button class="btn ghost" id="btnPreviewSample">Show Sample</button>
+
+    </div>
+
+
+
+    <hr>
+   <center>
+    <label>Halls (add/remove)</label></center>
+
+    <div class="hall-list" id="hallList"></div>
+
+    <div class="add-hall">
+
+      <button class="btn ghost" id="btnAddHall">+ Add Hall</button>
+
+      <button class="btn" id="btnRemoveLast">Remove Last</button>
+
+    </div>
+
+
+
+    <div class="small" id="assignCounter" style="margin-top:6px"></div>
+
+    <hr>
+
+    <div class="controls">
+
+      <button class="btn" id="btnPreview">Preview Seating</button>
+
+      <button class="btn" id="btnGenerate">💾 Generate Excel</button>
+
+
+      <button class="btn ghost" id="btnClear">Clear</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<div>
+
+  <div class="card preview-area">
+
+    <div id="messages">No file loaded.</div>
+
+    <div id="preview" style="min-height:220px"></div>
+
+  </div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<script>
+
+(function(){
+
+let students=[], halls=[], hallCounter=0;
+
+// Normalize uploaded rows
+function normalizeRow(r){
+  const map={};
+  for(const k in r) map[k.trim().toLowerCase()]=r[k];
+  const roll=map['roll no']||map['rollno']||map['roll']||'';
+  const name=map['name of the student']||map['name']||'';
+  const year=map['year']||''; const section=map['section']||'';
+  const subj=map['subject code']||map['subjectcode']||''; const subjname=map['subject name']||map['subjectname']||'';
+  return {RollNo:roll,Name:name,Year:year,Section:section,SubjectCode:subj,SubjectName:subjname};
+}
+
+// Render hall list
+function renderHallList(){
+  const container=document.getElementById('hallList'); container.innerHTML='';
+  halls.forEach(h=>{
+    const div=document.createElement('div'); div.className='hall-item';
+    div.innerHTML=`
+      <label>Hall Name</label>
+      <input type='text' id='hall_name_${h.id}' value='${h.name}' placeholder='Hall Name'>
+      <label>No of Rows</label>
+      <input type='number' id='hall_rows_${h.id}' value='${h.rows}' min='1' placeholder='Rows'>
+      <label>No of Columns</label>
+      <input type='number' id='hall_cols_${h.id}' value='${h.cols}' min='1' placeholder='Cols'>
+      <label>I Yr</label>
+      <input type='number' id='hall_I_${h.id}' value='0' placeholder='I Yr'>
+      <label>II Yr</label>
+      <input type='number' id='hall_II_${h.id}' value='0' placeholder='II Yr'>
+      <label>III Yr</label>
+      <input type='number' id='hall_III_${h.id}' value='0' placeholder='III Yr'>
+      <label>IV Yr</label>
+      <input type='number' id='hall_IV_${h.id}' value='0' placeholder='IV Yr'>
+      <label>Seating Pattern</label>
+      <select id='hall_pattern_${h.id}' style='padding:6px;border-radius:6px;'>
+        <option value='row' ${h.pattern==='row'?'selected':''}>Row</option>
+        <option value='column' ${h.pattern==='column'?'selected':''}>Column</option>
+        <option value='zigzag' ${h.pattern==='zigzag'?'selected':''}>Zigzag</option>
+        <option value='alternate' ${h.pattern==='alternate'?'selected':''}>Alternate</option>
+      </select>
+      <button type='button' data-remove='${h.id}' class='remove-btn' style='background:#ff6b6b;color:white;border:none;border-radius:6px;padding:6px'>×</button>
+    `;
+    container.appendChild(div);
+  });
+  container.querySelectorAll('.remove-btn').forEach(btn=> btn.addEventListener('click', ()=>{
+    const id=Number(btn.getAttribute('data-remove')); halls=halls.filter(x=>x.id!==id); renderHallList();
+  }));
+}
+
+function addHall(name=`Hall ${hallCounter+1}`, rows=6, cols=6, pattern='row'){ hallCounter++; halls.push({id:hallCounter,name,rows,cols,pattern}); renderHallList(); }
+function removeLastHall(){ if(halls.length){ halls.pop(); hallCounter--; renderHallList(); } }
+function showMessage(msg){ document.getElementById('messages').innerHTML=`<strong>${msg}</strong>`; }
+
+// File parsing
+function parseCSV(text){
+  const lines=text.split(/\r?\n/).filter(Boolean);
+  const sep=lines[0].includes(',')? ',':'\t';
+  const headers=lines[0].split(sep).map(h=>h.trim());
+  const rows=lines.slice(1).map(l=>{const cols=l.split(sep).map(c=>c.trim()); const obj={}; headers.forEach((h,i)=>obj[h]=cols[i]||''); return obj;});
+  return {headers,rows};
+}
+
+document.getElementById('fileInput').addEventListener('change',async(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const name=f.name.toLowerCase();
+  try{
+    if(name.endsWith('.csv')){
+      const text=await f.text();
+      students=parseCSV(text).rows.map(normalizeRow);
+    } else {
+      const data=await f.arrayBuffer();
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      students=XLSX.utils.sheet_to_json(ws,{defval:''}).map(normalizeRow);
+    }
+    showMessage(`Loaded ${students.length} students.`);
+  }catch(err){ showMessage('Failed to load file: '+err.message); }
+});
+
+// Download template
+document.getElementById('btnTemplate').addEventListener('click',()=>{
+  const headers=['Roll No','Name of the Student','Year','Section','Subject Code','Subject Name'];
+  const ws=XLSX.utils.aoa_to_sheet([headers,['12345','Student One','I','A','CS101','Math']]);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Template');
+  XLSX.writeFile(wb,'Seating_Template.xlsx');
+});
+
+// Seat id
+function seatId(c,r){ return `${String.fromCharCode(65+c)}${r+1}`; }
+
+// Build seat order with patterns
+function buildSeatOrder(rows, cols, pattern = "row") {
+  const order = [];
+  if (pattern === "row") {
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) order.push({ r, c });
+  } else if (pattern === "column") {
+    for (let c = 0; c < cols; c++)
+      for (let r = 0; r < rows; r++) order.push({ r, c });
+  } else if (pattern === "zigzag") {
+    for (let r = 0; r < rows; r++) {
+      if (r % 2 === 0)
+        for (let c = 0; c < cols; c++) order.push({ r, c });
+      else
+        for (let c = cols - 1; c >= 0; c--) order.push({ r, c });
+    }
+  } else if (pattern === "alternate") {
+    for (let c = 0; c < cols; c += 2)
+      for (let r = 0; r < rows; r++) order.push({ r, c });
+    for (let c = 1; c < cols; c += 2)
+      for (let r = 0; r < rows; r++) order.push({ r, c });
+  }
+  return order;
+}
+
+// Allocate students with left/right subject restriction
+function allocateToHall(stuList, hall){
+  const rows = Number(hall.rows), cols = Number(hall.cols);
+  const seats = Array.from({length: rows}, () => Array.from({length: cols}, () => null));
+  const pattern = hall.pattern || "row";
+  const order = buildSeatOrder(rows, cols, pattern);
+  let pool = stuList.slice();
+
+  const yearCounts = {I: Number(hall.I), II: Number(hall.II), III: Number(hall.III), IV: Number(hall.IV)};
+  const yearPools = {I: [], II: [], III: [], IV: []};
+  pool.forEach(s => { if(yearPools[s.Year]) yearPools[s.Year].push(s); });
+
+  function canSitHere(stu,left,right){
+    if(!stu) return false;
+    if((left && stu.SubjectCode===left.SubjectCode)||(right && stu.SubjectCode===right.SubjectCode)) return false;
+    return true;
+  }
+
+  for(const pos of order){
+    let assigned=false;
+    const left = pos.c>0?seats[pos.r][pos.c-1]:null;
+    const right = pos.c<cols-1?seats[pos.r][pos.c+1]:null;
+
+    for(const yr of ['I','II','III','IV']){
+      if(yearCounts[yr]>0 && yearPools[yr].length){
+        let idx = yearPools[yr].findIndex(s=>canSitHere(s,left,right));
+        if(idx===-1) continue;
+        seats[pos.r][pos.c]=yearPools[yr].splice(idx,1)[0];
+        yearCounts[yr]--; assigned=true; break;
+      }
+    }
+
+    if(!assigned && pool.length){
+      let idx = pool.findIndex(s=>canSitHere(s,left,right));
+      if(idx===-1) idx=0;
+      seats[pos.r][pos.c]=pool.splice(idx,1)[0];
+    }
+  }
+
+  const assigned=[];
+  for(let r=0;r<rows;r++)
+    for(let c=0;c<cols;c++)
+      assigned.push({row:r,col:c,student:seats[r][c],SeatingNo:seatId(c,r)});
+
+  return {assigned,remaining:pool};
+}
+
+// Render preview
+function renderPreview(){
+  if (!students.length) {
+    document.getElementById('preview').innerHTML = 'No data';
+    return;
+  }
+
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+  let unassigned = [...students];
+  let totalAssigned = 0;
+  const usedRolls = new Set(); // prevent duplicates
+
+  halls.forEach(h => {
+    const hallConf = {
+      name: document.getElementById(`hall_name_${h.id}`).value || h.name,
+      rows: Number(document.getElementById(`hall_rows_${h.id}`).value) || h.rows,
+      cols: Number(document.getElementById(`hall_cols_${h.id}`).value) || h.cols,
+      I: Number(document.getElementById(`hall_I_${h.id}`).value) || 0,
+      II: Number(document.getElementById(`hall_II_${h.id}`).value) || 0,
+      III: Number(document.getElementById(`hall_III_${h.id}`).value) || 0,
+      IV: Number(document.getElementById(`hall_IV_${h.id}`).value) || 0,
+      pattern: document.getElementById(`hall_pattern_${h.id}`).value || h.pattern
+    };
+
+    // Filter unassigned students only
+    const available = unassigned.filter(s => !usedRolls.has(s.RollNo));
+
+    const { assigned } = allocateToHall(available, hallConf);
+
+    // Mark assigned students and remove them from pool
+    assigned.forEach(a => {
+      if (a.student && !usedRolls.has(a.student.RollNo)) {
+        usedRolls.add(a.student.RollNo);
+      }
+    });
+
+    unassigned = unassigned.filter(s => !usedRolls.has(s.RollNo));
+    totalAssigned += assigned.filter(a => a.student).length;
+
+    // Render Hall
+    const hallDiv = document.createElement('div');
+    hallDiv.className = 'seatmap';
+    hallDiv.innerHTML = `<strong>${hallConf.name}</strong>`;
+
+    for (let r = 0; r < hallConf.rows; r++) {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'seat-row';
+      const label = document.createElement('div');
+      label.className = 'row-label';
+      label.textContent = r + 1;
+      rowDiv.appendChild(label);
+
+      for (let c = 0; c < hallConf.cols; c++) {
+        const seatDiv = document.createElement('div');
+        seatDiv.className = 'seat empty';
+        const s = assigned.find(a => a.row === r && a.col === c);
+        if (s && s.student) {
+          seatDiv.className = 'seat ' + s.student.Year;
+          seatDiv.textContent = s.student.RollNo;
+          seatDiv.setAttribute('data-name', s.student.Name);
+          seatDiv.setAttribute('data-year', s.student.Year);
+          seatDiv.setAttribute('data-section', s.student.Section);
+          seatDiv.setAttribute('data-subject', s.student.SubjectCode);
+          seatDiv.title = `${s.student.Name} | ${s.student.SubjectCode}`;
+        }
+        rowDiv.appendChild(seatDiv);
+      }
+      hallDiv.appendChild(rowDiv);
+    }
+
+    preview.appendChild(hallDiv);
+  });
+
+  enableSeatSwapping();
+  document.getElementById('assignCounter').textContent =
+    `Assigned: ${totalAssigned} / ${students.length}`;
+}
+
+
+// === Enable Seat Swapping in Preview ===
+let selectedSeat = null;
+
+function enableSeatSwapping() {
+  document.querySelectorAll('.seat').forEach(seat => {
+    seat.addEventListener('click', () => {
+      if (!seat.textContent) return; // ignore empty seats
+      if (!selectedSeat) {
+        // select first
+        selectedSeat = seat;
+        seat.style.outline = '3px solid #2563eb';
+      } else if (selectedSeat === seat) {
+        // deselect same
+        seat.style.outline = '';
+        selectedSeat = null;
+      } else {
+        // swap seat contents
+        const tempData = {
+          text: selectedSeat.textContent,
+          name: selectedSeat.getAttribute('data-name'),
+          year: selectedSeat.getAttribute('data-year'),
+          section: selectedSeat.getAttribute('data-section'),
+          subject: selectedSeat.getAttribute('data-subject'),
+          className: selectedSeat.className
+        };
+
+        selectedSeat.textContent = seat.textContent;
+        selectedSeat.setAttribute('data-name', seat.getAttribute('data-name'));
+        selectedSeat.setAttribute('data-year', seat.getAttribute('data-year'));
+        selectedSeat.setAttribute('data-section', seat.getAttribute('data-section'));
+        selectedSeat.setAttribute('data-subject', seat.getAttribute('data-subject'));
+        selectedSeat.className = seat.className;
+
+        seat.textContent = tempData.text;
+        seat.setAttribute('data-name', tempData.name);
+        seat.setAttribute('data-year', tempData.year);
+        seat.setAttribute('data-section', tempData.section);
+        seat.setAttribute('data-subject', tempData.subject);
+        seat.className = tempData.className;
+
+        // remove selection outline
+        selectedSeat.style.outline = '';
+        selectedSeat = null;
+      }
+    });
+  });
+}
+
+
+// Event listeners
+document.getElementById('btnAddHall').addEventListener('click',()=>addHall());
+document.getElementById('btnRemoveLast').addEventListener('click',()=>removeLastHall());
+document.getElementById('btnPreview').addEventListener('click',()=>renderPreview());
+document.getElementById('btnClear').addEventListener('click',()=>{students=[];halls=[];renderHallList();document.getElementById('preview').innerHTML='';showMessage('Cleared');});
+
+//report generated 
+// Preview & Download
+document.getElementById('btnPreview').addEventListener('click', renderPreview);
+
+document.getElementById('btnGenerate').addEventListener('click', () => {
+  const date = document.getElementById('inpDate').value,
+        dept = document.getElementById('inpDept').value,
+        batch = document.getElementById('inpBatch').value;
+
+  if (!date || !dept || !batch) { 
+    alert('Fill date, dept, batch'); 
+    return; 
+  }
+
+  const wb = XLSX.utils.book_new();
+  // Single sheet data array
+  const wsData = [['Date','Department','Batch','Hall No','Student Roll No','Name','Seating No','Subject Code','Subject','Year','Section']];
+
+  document.querySelectorAll('.seatmap').forEach(hallDiv => {
+    const hallName = hallDiv.querySelector('strong').textContent;
+
+    hallDiv.querySelectorAll('.seat-row').forEach((rowDiv, rowIdx) => {
+      const rowLabel = rowDiv.querySelector('.row-label').textContent;
+
+      rowDiv.querySelectorAll('.seat').forEach((seatDiv, colIdx) => {
+        if (seatDiv.textContent) {
+          wsData.push([
+            date,
+            dept,
+            batch,
+            hallName,
+            seatDiv.textContent,
+            seatDiv.getAttribute('data-name') || '',
+            `${String.fromCharCode(65 + colIdx)}${rowIdx + 1}`,
+            seatDiv.getAttribute('data-subject') || '',
+            seatDiv.getAttribute('data-subject') || '',
+            seatDiv.getAttribute('data-year') || '',
+            seatDiv.getAttribute('data-section') || '',// Section, can be filled if needed
+          ]);
+        }
+      });
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Seating_All_Halls');
+  XLSX.writeFile(wb, `${dept}_${batch}_${date}_Seating.xlsx`);
+  alert("✅ Excel generated successfully!");
+});
+
+
+
+})();
+</script>
+
+</body>
+
+</html>
