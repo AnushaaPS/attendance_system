@@ -238,13 +238,21 @@
       <h1>Faculty Dashboard</h1>
       <div id="welcome" class="small"></div>
     </div>
-    <button class="logout-btn" onclick="logout()">Logout</button>
+    <button class="logout-btn" onclick="logout()">🖲️ Logout</button>
   </header>
 
   <div class="card">
     <div class="u-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <button class="btn" onclick="window.open('seating.html', '_blank')">
+  🧾 Seating Arrangement
+</button>
       <button class="btn" onclick="downloadExcelTemplate()">📄 Download Excel Template</button>
-      <span class="small">Use this template to upload seating data</span>
+        <span class="small">Use this template to upload seating data</span>
+    </div>
+    <div class="card">
+    <div class="u-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+    
     </div>
 
     <hr>
@@ -254,7 +262,7 @@
       <h2>📤 Upload Seating Excel</h2>
       <div class="u-row">
         <input type="file" id="excelFile" accept=".xlsx,.xls" />
-        <button class="btn" id="btnUpload" onclick="uploadExcel()">Upload & Save</button>
+        <button class="btn" id="btnUpload" onclick="uploadExcel()">⏫ Upload & Save</button>
         <span id="uploadMsg" class="small"></span>
       </div>
     </section>
@@ -262,6 +270,7 @@
     <hr>
 
   <h2>Download Hall Plan</h2>
+      <div class="u-row" style="margin-bottom:8px;">
   <label for="planDate">Select Date:</label>
   <input type="date" id="planDate" class="input" />
 
@@ -278,7 +287,7 @@
   <option value="II">Internal Exam II</option>
 </select>
 
-  <button class="btn" onclick="downloadHallPlan()">Download Hall Plan PDF</button>
+  <button class="btn" onclick="downloadHallPlan()">⏬ Download Hall Plan PDF</button>
 
 
     <!-- Absentees & Summary -->
@@ -297,8 +306,8 @@
         <label>Department:</label>
         <select id="deptSelect"></select>
 
-        <button class="btn" onclick="loadAbsentees()">Load</button>
-        <button class="btn" onclick="downloadAbsenteesCSV()">Download CSV</button>
+        <button class="btn" onclick="loadAbsentees()">🔍 Load</button>
+        <button class="btn" onclick="downloadAbsenteesCSV()">⏬📉 Download CSV</button>
       </div>
 
       <div id="deptStats" style="margin-top:8px" class="small"></div>
@@ -309,7 +318,7 @@
       <div id="yearCardArea"></div>
 
       <div id="yearSummaryArea" class="table-container"></div>
-      <button class = "btn" id="downloadYearSummary">Download Excel</button>
+      <button class = "btn" id="downloadYearSummary">⏬ Download Excel</button>
 <div id="yearSummaryArea"></div>
 
     </section>
@@ -717,7 +726,7 @@ async function generatePDF(data, examType, department) {
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     const centerText = (txt, yPos) => doc.text(txt, pageWidth/2, yPos, { align: "center" });
-    centerText("UNJHA V.DHANASAMY – D.PARIMALA DEVI EXAMINATION CELL", y); y += 20;
+    //centerText("UNJHA V.DHANASAMY – D.PARIMALA DEVI EXAMINATION CELL", y); y += 20;
     doc.setFontSize(12);
     centerText("Office of the Controller of Examinations", y); y += 18;
     centerText("ODD Semester of 2025 – 2026", y); y += 18;
@@ -874,6 +883,7 @@ async function generatePDF(data, examType, department) {
 
   doc.save(`HallPlan_${dateForName}_${batchTextForName}_Exam${examType}.pdf`);
 }
+
 
 </script>
 </body>
