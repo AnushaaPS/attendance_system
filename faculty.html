@@ -288,6 +288,7 @@
 </select>
 
   <button class="btn" onclick="downloadHallPlan()">⏬ Download Hall Plan PDF</button>
+  <button class="btn" onclick="generateHallPlanSchedule()">⏬ Download Hall Plan Schedule PDF</button>
 
 
     <!-- Absentees & Summary -->
@@ -670,7 +671,11 @@ async function generatePDF(data, examType, department) {
     "ADS": "ARTIFICIAL INTELLIGENCE AND DATA SCIENCE"
   };
 
-  const departmentFullName = departmentMap[department] || department.toUpperCase();
+  const departmentFullName =
+  department && departmentMap[department]
+    ? departmentMap[department]
+    : (department ? department.toUpperCase() : "UNKNOWN DEPARTMENT");
+
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF("landscape", "pt", "a4");
@@ -726,7 +731,6 @@ async function generatePDF(data, examType, department) {
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     const centerText = (txt, yPos) => doc.text(txt, pageWidth/2, yPos, { align: "center" });
-    //centerText("UNJHA V.DHANASAMY – D.PARIMALA DEVI EXAMINATION CELL", y); y += 20;
     doc.setFontSize(12);
     centerText("Office of the Controller of Examinations", y); y += 18;
     centerText("ODD Semester of 2025 – 2026", y); y += 18;
@@ -884,6 +888,207 @@ async function generatePDF(data, examType, department) {
   doc.save(`HallPlan_${dateForName}_${batchTextForName}_Exam${examType}.pdf`);
 }
 
+async function generateHallPlanSchedule() {
+  const selectedDate = document.getElementById("planDate").value;
+  const selectedBatch = document.getElementById("planBatch").value;
+  const selectedExam = document.getElementById("internalExam").value;
+
+  if (!selectedDate || !selectedBatch || !selectedExam) {
+    alert("Please select Date, Batch, and Internal Exam");
+    return;
+  }
+
+  const user = JSON.parse(localStorage.getItem("user"));
+  if (!user || !user.department) {
+    alert("Department information missing. Please login again.");
+    return;
+  }
+
+  try {
+    const res = await apiFetch({
+      action: "getStudentSeatingData",
+      date: selectedDate,
+      batch: selectedBatch,
+      department: user.department
+    });
+
+    const data = Array.isArray(res) ? res : res.success ? res.data : res.result;
+    if (!data || data.length === 0) {
+      alert("No data to generate hall plan schedule.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF("portrait", "pt", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const logoUrl = "logo.jpeg";
+
+    const departmentFullName = {
+      "CSE": "COMPUTER SCIENCE AND ENGINEERING",
+      "ECE": "ELECTRONICS AND COMMUNICATION ENGINEERING",
+      "ME": "MECHANICAL ENGINEERING",
+      "CE": "CIVIL ENGINEERING",
+      "ADS": "ARTIFICIAL INTELLIGENCE AND DATA SCIENCE"
+    }[user.department] || user.department;
+
+    // === Load Logo (Optional) ===
+    let imgData = null;
+  try {
+    const resp = await fetch(logoUrl);
+    if (resp.ok) {
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      imgData = canvas.toDataURL("image/jpeg");
+    }
+  } catch(e) { console.warn("Logo load failed:", e); }
+
+
+    // === Group data by Hall No ===
+    const groupedByHall = {};
+    data.forEach(row => {
+      const hall = row["Hall No"] || row["HallNo"];
+      if (!groupedByHall[hall]) groupedByHall[hall] = [];
+      groupedByHall[hall].push(row);
+    });
+
+    
+
+    // === Header ===
+    let y = 230;
+    function addHeader() {
+      // === Logo ===
+    let yHeader = 20;
+    if (imgData) {
+      const logoWidth = 250;
+      const logoHeight = 50;
+      doc.addImage(imgData, "JPEG", (pageWidth - logoWidth)/2, yHeader, logoWidth, logoHeight);
+      yHeader += logoHeight + 30;
+    }
+
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text("Office of the Controller of Examinations", pageWidth / 2, 90, { align: "center" });
+      doc.text("ODD Semester of 2025 – 2026", pageWidth / 2, 110, { align: "center" });
+      doc.text("Hall Plan Schedule", pageWidth / 2, 130, { align: "center" });
+
+      doc.setFont("times", "normal");
+      doc.setFontSize(12);
+      doc.text(`DEPARTMENT OF ${departmentFullName}`, pageWidth / 2, 150, { align: "center" });
+      doc.text(`INTERNAL EXAMINATION - ${selectedExam}`, pageWidth / 2, 170, { align: "center" });
+
+      doc.setFontSize(12);
+      doc.text(`Date: ${selectedDate}`, 70, 190);
+      doc.text(`Session: ${selectedBatch}`, pageWidth - 70, 190, { align: "right" });
+
+      // Table header box
+      const tableLeft = 50;
+      const tableRight = pageWidth - 50;
+      const headerHeight = 25;
+
+      doc.setLineWidth(0.5);
+      doc.rect(tableLeft, 200, tableRight - tableLeft, headerHeight);
+      const colX = [110, 200, 350, 500];
+      colX.forEach(x => doc.line(x, 200, x, 225));
+
+      const headers = ["Hall No", "Course Code", "Year & Section", "Roll Number", "Total"];
+      const centers = [80, 155, 275, 425, 525];
+
+      doc.setFont("times", "bold");
+      doc.setFontSize(11);
+      headers.forEach((h, i) => doc.text(h, centers[i], 217, { align: "center" }));
+
+      y = 225;
+    }
+
+    // === Footer ===
+    function addFooter() {
+      const footerY = pageHeight - 50;
+      doc.setFont("times", "normal");
+      doc.setFontSize(12);
+      doc.text("Department Exam Cell In-charge", 100, footerY);
+      doc.text("HoD", pageWidth - 100, footerY, { align: "right" });
+    }
+
+    addHeader();
+
+    const tableLeft = 50;
+    const tableRight = pageWidth - 50;
+    const colX = [tableLeft, 110, 200, 350, 500, tableRight];
+    const centers = [80, 155, 275, 425, 525];
+
+    // === Fill table ===
+    for (const hall of Object.keys(groupedByHall)) {
+      const hallStudents = groupedByHall[hall];
+      const courseGroups = {};
+
+      hallStudents.forEach(s => {
+        const course = s["Subject Code"] || s["Course Code"] || "";
+        const year = s["Year"] || "";
+        const section = s["Section"] || "";
+        const key = `${course}_${year}_${section}`;
+        if (!courseGroups[key]) courseGroups[key] = [];
+        courseGroups[key].push(s);
+      });
+
+      const hallStartY = y;
+      let hallEndY = y;
+
+      const courseKeys = Object.keys(courseGroups);
+      courseKeys.forEach((key, idx) => {
+        const [courseCode, year, section] = key.split("_");
+        const list = courseGroups[key];
+        const rollNos = list.map(s => s["Student Roll No"] || s["Register No"] || "").filter(Boolean).sort();
+        const rollText =
+          rollNos.length === 1
+            ? rollNos[0]
+            : rollNos.length > 1
+            ? `${rollNos[0]} - ${rollNos[rollNos.length - 1]}`
+            : "-";
+
+        const rowHeight = 20;
+        if (y + rowHeight > pageHeight - 80) {
+          addFooter();
+          doc.addPage();
+          addHeader();
+          y = 225;
+        }
+
+        // Draw row border
+        doc.rect(110, y, tableRight - 110, rowHeight); // skip hall column box
+        for (const x of colX.slice(2, -1)) doc.line(x, y, x, y + rowHeight);
+
+        doc.setFont("times", "normal");
+        doc.setFontSize(11);
+        doc.text(courseCode, centers[1], y + 14, { align: "center" });
+        doc.text(`${year} ${user.department} ${section}`, centers[2], y + 14, { align: "center" });
+        doc.text(rollText, centers[3], y + 14, { align: "center" });
+        doc.text(String(rollNos.length), centers[4], y + 14, { align: "center" });
+
+        y += rowHeight;
+        hallEndY = y;
+      });
+
+      // Draw merged Hall No cell (with no internal lines)
+      doc.rect(50, hallStartY, 60, hallEndY - hallStartY);
+      doc.text(hall, 80, (hallStartY + hallEndY) / 2 - 3, { align: "center" });
+
+      // Draw bottom line for this hall block
+      doc.line(50, hallEndY, pageWidth - 50, hallEndY);
+    }
+
+    addFooter();
+    doc.save(`Hall_Plan_Schedule_${user.department}_${selectedDate}_${selectedBatch}.pdf`);
+  } catch (err) {
+    console.error("generateHallPlanSchedule error:", err);
+    alert("Error generating hall plan schedule: " + (err.message || err));
+  }
+}
 
 </script>
 </body>
