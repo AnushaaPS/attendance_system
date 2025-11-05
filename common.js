@@ -1,4 +1,4 @@
-const API_BASE = "https://script.google.com/macros/s/AKfycbxZbE14zh_cRNABaQK48LxJ7WCOd97b0S6vIoXttIVI_bpI1SG2UDpQUNs2KnMIsdtb/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbzx5zpSh2v_SBGgIqf_VrIhADxheD32NJ-AnpTMwXeBq4Q-j3yRX2Bzn3ZuFk945HQrsg/exec";
 
 async function apiFetch(payload) {
   // payload is an object with at least `action` property
@@ -30,3 +30,4 @@ function logout() {
   localStorage.removeItem("user");
   window.location.href = "login.html";
 }
+
